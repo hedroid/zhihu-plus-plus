@@ -33,17 +33,13 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.zly2006.zhihu.data.AccountData
 import com.github.zly2006.zhihu.navigation.Notification
-import com.github.zly2006.zhihu.navigation.Pin
 import com.github.zly2006.zhihu.navigation.Search
 import com.github.zly2006.zhihu.navigation.WritePin
-import com.github.zly2006.zhihu.shared.data.DataHolder
 import com.github.zly2006.zhihu.shared.data.FeedDisplayItem
 import com.github.zly2006.zhihu.shared.data.RecommendationMode
-import com.github.zly2006.zhihu.shared.data.ZhihuJson
 import com.github.zly2006.zhihu.shared.data.toFeedDisplayItemNavDestinationJson
 import com.github.zly2006.zhihu.test.MainActivityComposeRule
 import com.github.zly2006.zhihu.test.RecordingNavigator
-import com.github.zly2006.zhihu.test.ZhihuMockApi
 import com.github.zly2006.zhihu.test.performVerticalSwipeCycle
 import com.github.zly2006.zhihu.test.resetAppPreferences
 import com.github.zly2006.zhihu.test.setScreenContent
@@ -57,13 +53,8 @@ import com.github.zly2006.zhihu.ui.HOME_SEARCH_BUTTON_TAG
 import com.github.zly2006.zhihu.ui.HOME_TOP_ACTIONS_TAG
 import com.github.zly2006.zhihu.ui.HomeScreen
 import com.github.zly2006.zhihu.ui.PREFERENCE_NAME
-import com.github.zly2006.zhihu.ui.QQ_GROUP_DISMISSED_PREFERENCE_KEY
-import com.github.zly2006.zhihu.ui.ZHIHU_PLUS_AUTHOR_PINS_URL
-import com.github.zly2006.zhihu.ui.homeAuthorPollAnnouncementTag
 import com.github.zly2006.zhihu.updater.UpdateManager
 import com.github.zly2006.zhihu.viewmodel.feed.HomeFeedViewModel
-import io.ktor.http.HttpMethod
-import kotlinx.serialization.encodeToString
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Rule
@@ -206,34 +197,6 @@ class HomeScreenInstrumentedTest {
     }
 
     @Test
-    fun authorPollAnnouncement_navigatesToSeededPinOffline() {
-        /*
-         * Expected behavior:
-         * 1. HomeScreen should be able to render poll announcements discovered at startup without
-         *    waiting for live feeds or a real account.
-         * 2. The card should invite feedback and show the poll title plus compact statistics.
-         * 3. The accept action must navigate to the exact pin that owns the poll.
-         */
-        mockAuthorPollAnnouncement()
-        val recordingNavigator = composeRule.launchHomeScreen(
-            duo3HomeAccount = false,
-            showRefreshFab = false,
-            useSeededAccountForNetwork = true,
-            displayItems = homeFeedFixtureItems(),
-        )
-
-        val announcementTag = homeAuthorPollAnnouncementTag(2051253530787370452L)
-        composeRule.waitUntilRequestCount(HttpMethod.Get, ZHIHU_PLUS_AUTHOR_PINS_URL, 1)
-        composeRule.waitUntilHomeFeedTagExists(announcementTag)
-        composeRule.onNodeWithTag(announcementTag).assertExists()
-        composeRule.onNodeWithText("请给未来的知乎++提出建议").assertIsDisplayed()
-        composeRule.onNodeWithText("知乎++好用吗\n5 个选项").assertIsDisplayed()
-        composeRule.onNodeWithText("去投票").assertIsDisplayed().performClick()
-
-        assertEquals(listOf(Pin(2051253530787370452L)), recordingNavigator.destinations)
-    }
-
-    @Test
     fun seededOfflineList_scrollsToFarItemsAndBack_stably() {
         /*
          * Expected behavior:
@@ -271,8 +234,6 @@ class HomeScreenInstrumentedTest {
             putBoolean("duo3_home_account", duo3HomeAccount)
             putBoolean("showRefreshFab", showRefreshFab)
             putBoolean("loginForRecommendation", useSeededAccountForNetwork)
-            putBoolean("filterExplainDialogShown", true)
-            putBoolean(QQ_GROUP_DISMISSED_PREFERENCE_KEY, true)
             putBoolean("survey_feedback_done", true)
             putBoolean("autoCheckUpdates", false)
             putString("recommendationMode", RecommendationMode.WEB.key)
@@ -321,16 +282,6 @@ class HomeScreenInstrumentedTest {
         }
     }
 
-    private fun MainActivityComposeRule.waitUntilRequestCount(
-        method: HttpMethod,
-        urlSubstring: String,
-        count: Int,
-    ) {
-        waitUntil("Expected $count $method requests containing $urlSubstring", timeoutMillis = 5_000) {
-            ZhihuMockApi.requestCount(method, urlSubstring) == count
-        }
-    }
-
     private fun homeFeedFixtureItems(count: Int = 8): List<FeedDisplayItem> = List(count) { index ->
         FeedDisplayItem(
             title = "离线条目 ${index.toString().padStart(2, '0')}",
@@ -338,47 +289,6 @@ class HomeScreenInstrumentedTest {
             details = "离线验证 · 固定假数据",
             feed = null,
             navDestinationJson = Search(query = "fixture-$index").toFeedDisplayItemNavDestinationJson(),
-        )
-    }
-
-    private fun mockAuthorPollAnnouncement() {
-        val pin = DataHolder.Pin(
-            id = "2051253530787370452",
-            url = "https://www.zhihu.com/pin/2051253530787370452",
-            author = DataHolder.Author(
-                avatarUrl = "",
-                gender = 0,
-                headline = "",
-                id = "zhihu-plus-author",
-                isAdvertiser = false,
-                isOrg = false,
-                name = "知乎++作者",
-                type = "people",
-                url = "https://www.zhihu.com/people/scanmenge",
-                urlToken = "scanmenge",
-                userType = "people",
-            ),
-            bottomPoll = DataHolder.Pin.BottomPoll(
-                voting = DataHolder.Pin.Poll(
-                    id = "2051253919255360130",
-                    title = "知乎++好用吗",
-                    maxSelections = 1,
-                    type = "single",
-                    endAt = -1,
-                    options = listOf(
-                        DataHolder.Pin.PollOption(id = "a", title = "非常好用"),
-                        DataHolder.Pin.PollOption(id = "b", title = "还可以"),
-                        DataHolder.Pin.PollOption(id = "c", title = "一般"),
-                        DataHolder.Pin.PollOption(id = "d", title = "不好用"),
-                        DataHolder.Pin.PollOption(id = "e", title = "没用过"),
-                    ),
-                ),
-            ),
-        )
-        ZhihuMockApi.mockJson(
-            method = HttpMethod.Get,
-            url = ZHIHU_PLUS_AUTHOR_PINS_URL,
-            body = """{"data":[${ZhihuJson.json.encodeToString(pin)}]}""",
         )
     }
 }

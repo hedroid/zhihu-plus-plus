@@ -301,7 +301,7 @@ jobs:
             app/build/upload/zhihu++-full.apk
             app/build/upload/zhihu++-desktop-*.jar
           fail_on_unmatched_files: true
-          prerelease: true
+          prerelease: false
       - name: Generate release notes
         if: ${{ inputs.release && startsWith(github.ref, 'refs/tags/') }}
         id: release_notes
