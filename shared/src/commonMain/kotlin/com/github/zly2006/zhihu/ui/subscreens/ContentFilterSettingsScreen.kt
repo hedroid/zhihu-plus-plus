@@ -269,7 +269,7 @@ fun ContentFilterSettingsScreen(
                 SettingItemWithSwitch(
                     modifier = Modifier.testTag("contentFilterSettings:showBlockedFeedContent"),
                     title = { Text("展示屏蔽内容") },
-                    description = { Text("开启后在主页信息流保留“已屏蔽”占位卡片；关闭后直接移除被过滤内容") },
+                    description = { Text("开启后在主页信息流保留“已屏蔽”占位卡片，关闭后直接移除被过滤内容") },
                     checked = showBlockedFeedContent.value,
                     onCheckedChange = {
                         showBlockedFeedContent.value = it
