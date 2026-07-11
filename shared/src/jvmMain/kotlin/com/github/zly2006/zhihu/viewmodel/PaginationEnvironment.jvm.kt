@@ -144,6 +144,7 @@ class DesktopPaginationEnvironment(
     override fun feedDisplaySettings(): FeedDisplaySettings = FeedDisplaySettings(
         enableQualityFilter = false,
         reverseBlock = settingsStore.toFeedFilterSettings().reverseBlock,
+        showBlockedContent = settingsStore.getBoolean("showBlockedFeedContent", false),
     )
 
     override fun localHistory(): List<NavDestination> =
@@ -219,6 +220,7 @@ class DesktopPaginationEnvironment(
 
     override suspend fun applyHomeFeedFilters(items: List<FeedDisplayItem>): HomeFeedFilterResult {
         val settings = settingsStore.toFeedFilterSettings()
+        val showBlockedContent = settingsStore.getBoolean("showBlockedFeedContent", false)
         val foregroundItems = ForegroundReadFilterPipeline(
             settings = settings,
             contentFilterManager = ContentFilterManager(contentFilterDb.contentFilterDao()),
@@ -241,9 +243,10 @@ class DesktopPaginationEnvironment(
             blockedFeedRecordDao = contentFilterDb.blockedFeedRecordDao(),
         ).filter(foregroundItems)
         return HomeFeedFilterResult(
-            foregroundItems = foregroundItems,
+            foregroundItems = foregroundItems.visibleBlockedItems(showBlockedContent),
             filteredItems = filteredItems,
             reverseBlock = settings.reverseBlock,
+            showBlockedContent = showBlockedContent,
         )
     }
 

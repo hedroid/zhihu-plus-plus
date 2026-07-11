@@ -25,7 +25,6 @@ import com.github.zly2006.zhihu.shared.platform.rememberSettingsStore
 import com.github.zly2006.zhihu.shared.updater.SchematicVersion
 import com.github.zly2006.zhihu.shared.updater.extractGithubReleaseNotes
 import com.github.zly2006.zhihu.shared.updater.fetchLatestZhihuRelease
-import com.github.zly2006.zhihu.shared.updater.fetchNightlyZhihuRelease
 import com.github.zly2006.zhihu.util.ZhihuCredentialRefresher
 import com.mikepenz.aboutlibraries.Libs
 import io.ktor.client.HttpClient
@@ -55,7 +54,6 @@ actual fun rememberSystemUpdateRuntime(): SystemUpdateRuntime {
                 checkDesktopUpdate(
                     client = accountStore.httpClient(),
                     githubToken = settings.getStringOrNull("githubToken")?.takeIf { it.isNotBlank() },
-                    checkNightly = settings.getBoolean("checkNightlyUpdates", false),
                     skippedVersion = settings.getStringOrNull(PREF_SKIPPED_VERSION),
                     state = desktopSystemUpdateState,
                 )
@@ -90,34 +88,15 @@ private const val PREF_SKIPPED_VERSION = "skippedVersion"
 private suspend fun checkDesktopUpdate(
     client: HttpClient,
     githubToken: String?,
-    checkNightly: Boolean,
     skippedVersion: String?,
     state: MutableStateFlow<SystemUpdateState>,
 ) {
     try {
         state.value = SystemUpdateState.Checking
         val currentVersion = SchematicVersion.fromString(desktopVersionName())
-        var latestResponse = fetchLatestZhihuRelease(client, githubToken)
-        var latestVersion = latestResponse.tagName.takeIf { it.isNotBlank() }?.let { SchematicVersion.fromString(it) }
-        var isNightly = false
-        var releaseNotes = latestResponse.body?.let(::extractGithubReleaseNotes)
-
-        if (checkNightly) {
-            runCatching {
-                fetchNightlyZhihuRelease(client, githubToken)
-            }.onSuccess { nightlyResponse ->
-                if (nightlyResponse.tagName == "nightly") {
-                    latestResponse = nightlyResponse
-                    latestVersion = SchematicVersion(
-                        allComponents = listOf(999, 0, 0),
-                        preRelease = "nightly",
-                        build = "",
-                    )
-                    isNightly = true
-                    releaseNotes = nightlyResponse.body?.let(::extractGithubReleaseNotes)
-                }
-            }
-        }
+        val latestResponse = fetchLatestZhihuRelease(client, githubToken)
+        val latestVersion = latestResponse.tagName.takeIf { it.isNotBlank() }?.let { SchematicVersion.fromString(it) }
+        val releaseNotes = latestResponse.body?.let(::extractGithubReleaseNotes)
 
         val version = latestVersion
         if (version != null && version > currentVersion) {
@@ -125,7 +104,7 @@ private suspend fun checkDesktopUpdate(
             if (skippedVersion != versionString) {
                 state.value = SystemUpdateState.UpdateAvailable(
                     version = versionString,
-                    isNightly = isNightly,
+                    isNightly = false,
                     releaseNotes = releaseNotes,
                     downloadUrl = latestResponse.htmlUrl ?: latestResponse.assets
                         .firstOrNull()

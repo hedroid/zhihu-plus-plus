@@ -30,8 +30,6 @@ import com.github.zly2006.zhihu.data.getOrFetchContentDetail
 import com.github.zly2006.zhihu.navigation.AnswerNavigator
 import com.github.zly2006.zhihu.navigation.Article
 import com.github.zly2006.zhihu.navigation.NavDestination
-import com.github.zly2006.zhihu.shared.aigc.AigcVoteClient
-import com.github.zly2006.zhihu.shared.aigc.AigcVoteVoter
 import com.github.zly2006.zhihu.shared.data.DataHolder
 import com.github.zly2006.zhihu.shared.data.Feed
 import com.github.zly2006.zhihu.shared.data.FeedDisplayItem
@@ -342,6 +340,7 @@ interface FeedDisplayEnvironment {
             foregroundItems = items,
             filteredItems = items,
             reverseBlock = feedDisplaySettings().reverseBlock,
+            showBlockedContent = feedDisplaySettings().showBlockedContent,
         )
 }
 
@@ -368,12 +367,6 @@ interface ContentOpenEnvironment {
         destination: Article,
         questionId: Long?,
     ) = Unit
-}
-
-interface AigcVoteEnvironment {
-    fun aigcVoteClient(): AigcVoteClient? = null
-
-    fun aigcVoteVoter(): AigcVoteVoter? = null
 }
 
 interface ContentBlocklistEnvironment {
@@ -458,8 +451,7 @@ interface ArticleNavigationEnvironment {
 interface ContentLoadEnvironment :
     ZhihuApiEnvironment,
     HistoryEnvironment,
-    ContentOpenEnvironment,
-    AigcVoteEnvironment
+    ContentOpenEnvironment
 
 interface ProfileLoadEnvironment :
     ContentLoadEnvironment,
@@ -484,13 +476,18 @@ interface PaginationEnvironment :
 data class FeedDisplaySettings(
     val enableQualityFilter: Boolean = true,
     val reverseBlock: Boolean = false,
+    val showBlockedContent: Boolean = false,
 )
 
 data class HomeFeedFilterResult(
     val foregroundItems: List<FeedDisplayItem>,
     val filteredItems: List<FeedDisplayItem>,
     val reverseBlock: Boolean,
+    val showBlockedContent: Boolean,
 )
+
+internal fun List<FeedDisplayItem>.visibleBlockedItems(showBlockedContent: Boolean): List<FeedDisplayItem> =
+    if (showBlockedContent) this else filterNot { it.isFiltered }
 
 @Composable
 expect fun rememberPaginationEnvironment(allowGuestAccess: Boolean): PaginationEnvironment
