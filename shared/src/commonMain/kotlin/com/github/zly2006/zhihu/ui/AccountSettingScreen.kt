@@ -509,10 +509,10 @@ fun AccountSettingScreen(
                 )
                 SettingItem(
                     title = { Text("GitHub 项目地址") },
-                    description = { Text("https://github.com/zly2006/zhihu-plus-plus") },
+                    description = { Text("https://github.com/hedroid/zhihu-plus-plus") },
                     icon = { Icon(painterResource(Res.drawable.ic_github_24dp), null) },
                     onClick = {
-                        openSystemUrl("https://github.com/zly2006/zhihu-plus-plus")
+                        openSystemUrl("https://github.com/hedroid/zhihu-plus-plus")
                     },
                     endAction = {
                         Icon(
@@ -528,7 +528,7 @@ fun AccountSettingScreen(
                     description = { Text("AGPL-3.0-only") },
                     icon = { Icon(painterResource(Res.drawable.ic_license_24dp), null) },
                     onClick = {
-                        openSystemUrl("https://github.com/zly2006/zhihu-plus-plus/blob/master/LICENSE")
+                        openSystemUrl("https://github.com/hedroid/zhihu-plus-plus/blob/master/LICENSE")
                     },
                     endAction = {
                         Icon(

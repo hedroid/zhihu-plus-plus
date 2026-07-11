@@ -312,7 +312,11 @@ data class Pin(
 
 fun resolveContent(url: String): NavDestination? = runCatching { resolveContent(Url(url)) }.getOrNull()
 
-fun resolveContent(url: Url): NavDestination? {
+fun resolveContent(url: Url): NavDestination? = resolveContent(url, depth = 0)
+
+private fun resolveContent(url: Url, depth: Int): NavDestination? {
+    if (depth > 4) return null
+    resolveHybridTarget(url, depth)?.let { return it }
     val segments = url.segments
     if (url.protocol.name == "http" || url.protocol.name == "https") {
         if (url.host == "zhihu.com" || url.host == "www.zhihu.com") {
@@ -370,7 +374,7 @@ fun resolveContent(url: Url): NavDestination? {
             Log.w("NavDestination", "Cannot resolve content from url: $url")
         } else if (url.host == "link.zhihu.com") {
             val target = url.parameters["target"] ?: return null
-            return runCatching { Url(target) }.getOrNull()?.let(::resolveContent)
+            return runCatching { Url(target) }.getOrNull()?.let { resolveContent(it, depth + 1) }
         }
     }
     if (url.protocol.name == "zhihu") {
@@ -395,4 +399,24 @@ fun resolveContent(url: Url): NavDestination? {
         Log.w("NavDestination", "Cannot resolve content from url: $url")
     }
     return null
+}
+
+private fun resolveHybridTarget(url: Url, depth: Int): NavDestination? {
+    if (!isZhihuHybridUrl(url)) return null
+    for (parameter in listOf("zh_url", "fallback_url")) {
+        val target = url.parameters[parameter] ?: continue
+        runCatching { Url(target) }
+            .getOrNull()
+            ?.let { resolveContent(it, depth + 1) }
+            ?.let { return it }
+    }
+    return null
+}
+
+private fun isZhihuHybridUrl(url: Url): Boolean {
+    if (url.protocol.name == "zhihu" && url.host == "hybrid") return true
+    if (url.protocol.name != "http" && url.protocol.name != "https") return false
+    if (url.host != "zhihu.com" && url.host != "www.zhihu.com" && url.host != "oia.zhihu.com") return false
+    val segments = url.segments
+    return segments == listOf("oia", "hybrid") || segments == listOf("hybrid")
 }

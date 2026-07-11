@@ -1,0 +1,72 @@
+name: Sync Upstream
+
+on:
+  schedule:
+    - cron: '17 20 * * *'
+  workflow_dispatch:
+    inputs:
+      publish_after_sync:
+        description: 'Trigger the release build workflow after syncing'
+        required: true
+        default: true
+        type: boolean
+      force_publish:
+        description: 'Trigger the release build even when there are no upstream changes'
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  sync:
+    name: Merge upstream/master
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.merge.outputs.changed }}
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.SYNC_TOKEN || github.token }}
+
+      - name: Configure git author
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Merge upstream
+        id: merge
+        run: |
+          git remote add upstream https://github.com/zly2006/zhihu-plus-plus.git
+          git fetch upstream master --tags
+          before="$(git rev-parse HEAD)"
+          git merge --no-edit upstream/master
+          after="$(git rev-parse HEAD)"
+          if [ "$before" = "$after" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Push synced master
+        if: steps.merge.outputs.changed == 'true'
+        run: git push origin HEAD:master
+
+  publish:
+    name: Trigger release build
+    needs: sync
+    runs-on: ubuntu-latest
+    if: >-
+      ${{
+        github.event_name == 'schedule' && needs.sync.outputs.changed == 'true' ||
+        github.event_name == 'workflow_dispatch' && inputs.publish_after_sync && (needs.sync.outputs.changed == 'true' || inputs.force_publish)
+      }}
+    steps:
+      - name: Dispatch Nightly Builds workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run build.yml --repo "$GITHUB_REPOSITORY" --ref master

@@ -46,4 +46,29 @@ class NavDestinationTest {
         assertEquals(ArticleType.Answer, article.type)
         assertEquals(42L, article.id)
     }
+
+    @Test
+    fun resolvesZhihuHybridUrlFromEmbeddedZhUrl() {
+        val destination = resolveContent(
+            "zhihu://hybrid?open=1&zh_url=https%3A%2F%2Fzhuanlan.zhihu.com%2Fp%2F703712120" +
+                "&fallback_url=https%3A%2F%2Fwww.zhihu.com%2Foia%2Fhybrid%3Fopen%3D1",
+        )
+
+        val article = assertIs<Article>(destination)
+        assertEquals(ArticleType.Article, article.type)
+        assertEquals(703712120L, article.id)
+    }
+
+    @Test
+    fun resolvesZhihuHybridUrlFromNestedFallbackUrl() {
+        val destination = resolveContent(
+            "zhihu://hybrid?open=1" +
+                "&fallback_url=https%3A%2F%2Fwww.zhihu.com%2Foia%2Fhybrid%3Fopen%3D1%26" +
+                "zh_url%3Dhttps%253A%252F%252Fzhuanlan.zhihu.com%252Fp%252F703712120",
+        )
+
+        val article = assertIs<Article>(destination)
+        assertEquals(ArticleType.Article, article.type)
+        assertEquals(703712120L, article.id)
+    }
 }
