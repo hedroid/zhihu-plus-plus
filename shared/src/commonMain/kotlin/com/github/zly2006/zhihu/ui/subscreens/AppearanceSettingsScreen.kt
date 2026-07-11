@@ -1478,7 +1478,7 @@ fun AppearanceSettingsScreen(
                     Text(
                         text = buildAnnotatedString {
                             append("以上设置项可能随时更改，或并入主线。\n欢迎")
-                            withLink(LinkAnnotation.Url("https://github.com/zly2006/zhihu-plus-plus/issues")) {
+                            withLink(LinkAnnotation.Url("https://github.com/hedroid/zhihu-plus-plus/issues")) {
                                 withStyle(
                                     MaterialTheme.typography.bodyMedium
                                         .copy(

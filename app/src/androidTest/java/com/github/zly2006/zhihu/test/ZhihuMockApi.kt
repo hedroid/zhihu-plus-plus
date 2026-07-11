@@ -140,7 +140,7 @@ object ZhihuMockApi {
             """.trimIndent()
         mockJson(
             method = HttpMethod.Get,
-            url = "https://api.github.com/repos/zly2006/zhihu-plus-plus/releases/latest",
+            url = "https://api.github.com/repos/hedroid/zhihu-plus-plus/releases/latest",
             body =
                 """
                 {
@@ -151,25 +151,6 @@ object ZhihuMockApi {
                       "name": "zhihu-lite.apk",
                       "content_type": "application/vnd.android.package-archive",
                       "browser_download_url": "https://example.invalid/zhihu-lite.apk"
-                    }
-                  ]
-                }
-                """.trimIndent(),
-        )
-        mockJson(
-            method = HttpMethod.Get,
-            url = "https://redenmc.com/api/zhihu/releases/latest",
-            body =
-                """
-                {
-                  "tag_name": "0.0.0",
-                  "body": "",
-                  "assets": [
-                    {
-                      "name": "zhihu-lite.apk",
-                      "content_type": "application/vnd.android.package-archive",
-                      "browser_download_url": "https://example.invalid/zhihu-lite.apk",
-                      "cn_download_url": "https://example.invalid/zhihu-lite-cn.apk"
                     }
                   ]
                 }

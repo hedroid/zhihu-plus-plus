@@ -91,7 +91,7 @@ class ZhihuCookieStorage(
     private val onCookieChanged: (() -> Unit)? = null,
 ) : CookiesStorage {
     override suspend fun addCookie(requestUrl: Url, cookie: Cookie) {
-        // https://github.com/zly2006/zhihu-plus-plus/issues/25#issuecomment-3311926550
+        // https://github.com/hedroid/zhihu-plus-plus/issues/25#issuecomment-3311926550
         if (cookie.name == "z_c0" && cookie.value.isBlank()) {
             return
         }

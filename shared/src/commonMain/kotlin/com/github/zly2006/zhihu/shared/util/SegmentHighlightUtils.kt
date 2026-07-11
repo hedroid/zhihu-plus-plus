@@ -158,7 +158,7 @@ fun applySegmentInfosToHtml(
         val target = document.selectFirst("""p[data-pid="${paragraph.pid}"]""") ?: return@forEach
         if (target.text() != paragraph.text) return@forEach
         // TODO(#418): 支持在保留内联格式的同时注入 segment_infos。
-        // https://github.com/zly2006/zhihu-plus-plus/issues/418
+        // https://github.com/hedroid/zhihu-plus-plus/issues/418
         if (target.childNodes().any(Node::hasUnsupportedSegmentInfoFormat)) return@forEach
 
         target.empty()
