@@ -99,7 +99,7 @@ private suspend fun checkDesktopUpdate(
         val releaseNotes = latestResponse.body?.let(::extractGithubReleaseNotes)
 
         val version = latestVersion
-        if (version != null && version > currentVersion) {
+        if (version != null && version.isUpdateFor(currentVersion)) {
             val versionString = version.toString()
             if (skippedVersion != versionString) {
                 state.value = SystemUpdateState.UpdateAvailable(

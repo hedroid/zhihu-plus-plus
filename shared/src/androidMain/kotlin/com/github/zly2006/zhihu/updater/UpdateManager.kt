@@ -149,7 +149,7 @@ object UpdateManager {
             latestVersion = latestResponse.tagName.takeIf { it.isNotBlank() }?.let { SchematicVersion.fromString(it) }
             val latestDownloadInfo = latestResponse.extractDownloadInfo(context)
 
-            if (latestVersion != null && latestVersion > currentVersion) {
+            if (latestVersion != null && latestVersion.isUpdateFor(currentVersion)) {
                 val versionString = latestVersion.toString()
                 // 检查是否是被跳过的版本
                 if (skippedVersion != versionString) {
@@ -187,7 +187,7 @@ object UpdateManager {
             val releaseNotes = latestResponse.body?.let(::extractGithubReleaseNotes)
             val downloadInfo = latestResponse.extractDownloadInfo(context)
 
-            if (latestVersion != null && latestVersion > currentVersion) {
+            if (latestVersion != null && latestVersion.isUpdateFor(currentVersion)) {
                 updateState.value = UpdateState.UpdateAvailable(
                     latestVersion,
                     false,

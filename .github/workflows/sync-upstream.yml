@@ -85,7 +85,8 @@ jobs:
             echo "app.versionName is missing from gradle.properties" >&2
             exit 1
           fi
-          tag="v${version_name}-hedroid.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"
+          short_sha="$(git rev-parse --short=8 HEAD)"
+          tag="v${version_name}-${short_sha}"
           git tag "$tag"
           git push origin "$tag"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"

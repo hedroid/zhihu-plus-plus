@@ -101,6 +101,9 @@ jobs:
         run: ./gradlew ktlintCheck
       #- name: Run gradle tests
       #  run: ./gradlew test
+      - name: Set Android version name
+        if: startsWith(github.ref, 'refs/tags/')
+        run: echo "android_version_name=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
       - name: Build App
         # Build .apk
         run: |
@@ -112,6 +115,7 @@ jobs:
           keyStorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           keyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
           CI_BUILD_MINIFY: ${{ inputs.minify }}
+          APP_VERSION_NAME: ${{ env.android_version_name }}
       - name: Move files
         run: |
           mkdir -p app/build/upload

@@ -34,7 +34,8 @@ android {
         minSdk = 27
         targetSdk = 35
         versionCode = property("app.versionCode").toString().toIntOrNull() ?: 1
-        versionName = property("app.versionName").toString()
+        versionName = System.getenv("APP_VERSION_NAME")?.takeIf { it.isNotBlank() }
+            ?: property("app.versionName").toString()
 
         testInstrumentationRunner = "com.github.zly2006.zhihu.ZhihuInstrumentedTestRunner"
     }
