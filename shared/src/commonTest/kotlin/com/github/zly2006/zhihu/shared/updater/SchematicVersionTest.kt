@@ -47,6 +47,14 @@ class SchematicVersionTest {
     }
 
     @Test
+    fun treatsForkReleaseSuffixChangesAsUpdates() {
+        assertTrue(SchematicVersion.fromString("v0.24.1-2778732e").isUpdateFor(SchematicVersion.fromString("0.24.1")))
+        assertTrue(SchematicVersion.fromString("v0.24.1-2778732e").isUpdateFor(SchematicVersion.fromString("v0.24.1-31a5da37")))
+        assertEquals(false, SchematicVersion.fromString("v0.24.1-2778732e").isUpdateFor(SchematicVersion.fromString("0.24.1-2778732e")))
+        assertTrue(SchematicVersion.fromString("0.24.2").isUpdateFor(SchematicVersion.fromString("v0.24.1-2778732e")))
+    }
+
+    @Test
     fun serializesAsVersionString() {
         val holder = VersionHolder(SchematicVersion.fromString("2.0.0-nightly"))
 

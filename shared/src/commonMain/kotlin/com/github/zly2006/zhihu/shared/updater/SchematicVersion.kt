@@ -39,6 +39,7 @@ class SchematicVersion(
         override fun deserialize(decoder: Decoder) = fromString(decoder.decodeString())
 
         private val REGEX = Regex("""[vV]?(?<components>[\d.]+)(-(?<pre>[\w._-]+))?(\+(?<build>.+))?""")
+        private val FORK_RELEASE_SUFFIX_REGEX = Regex("""(?:[0-9a-fA-F]{7,40}|hedroid\.\d+)""")
 
         fun fromString(version: String): SchematicVersion {
             val match = REGEX.matchEntire(version) ?: throw IllegalArgumentException("Invalid version string")
@@ -92,4 +93,28 @@ class SchematicVersion(
     }
 
     operator fun compareTo(other: String): Int = compareTo(fromString(other))
+
+    fun isUpdateFor(current: SchematicVersion): Boolean {
+        compareComponents(current).let { componentComparison ->
+            if (componentComparison != 0) return componentComparison > 0
+        }
+        val latestForkSuffix = forkReleaseSuffix()
+        val currentForkSuffix = current.forkReleaseSuffix()
+        if (latestForkSuffix != null || currentForkSuffix != null) {
+            return latestForkSuffix != currentForkSuffix
+        }
+        return this > current
+    }
+
+    private fun compareComponents(other: SchematicVersion): Int {
+        for (i in 0 until maxOf(allComponents.size, other.allComponents.size)) {
+            val a = allComponents.getOrNull(i) ?: 0
+            val b = other.allComponents.getOrNull(i) ?: 0
+            if (a != b) return a - b
+        }
+        return 0
+    }
+
+    private fun forkReleaseSuffix(): String? =
+        preRelease.takeIf { FORK_RELEASE_SUFFIX_REGEX.matches(it) }
 }
