@@ -6,12 +6,12 @@ on:
   workflow_dispatch:
     inputs:
       publish_after_sync:
-        description: 'Trigger the release build workflow after syncing'
+        description: 'Create a release tag after syncing'
         required: true
         default: true
         type: boolean
       force_publish:
-        description: 'Trigger the release build even when there are no upstream changes'
+        description: 'Create a release tag even when there are no upstream changes'
         required: true
         default: false
         type: boolean
@@ -57,7 +57,7 @@ jobs:
         run: git push origin HEAD:master
 
   publish:
-    name: Trigger release build
+    name: Create release tag
     needs: sync
     runs-on: ubuntu-latest
     if: >-
@@ -66,7 +66,31 @@ jobs:
         github.event_name == 'workflow_dispatch' && inputs.publish_after_sync && (needs.sync.outputs.changed == 'true' || inputs.force_publish)
       }}
     steps:
-      - name: Dispatch Nightly Builds workflow
+      - name: Checkout synced master
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Configure git author
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create release tag
+        id: tag
+        run: |
+          version_name="$(sed -n 's/^app\.versionName=//p' gradle.properties | head -n 1)"
+          if [ -z "$version_name" ]; then
+            echo "app.versionName is missing from gradle.properties" >&2
+            exit 1
+          fi
+          tag="v${version_name}-hedroid.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"
+          git tag "$tag"
+          git push origin "$tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch Release Builds workflow
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run build.yml --repo "$GITHUB_REPOSITORY" --ref master
+        run: gh workflow run build.yml --repo "$GITHUB_REPOSITORY" --ref "${{ steps.tag.outputs.tag }}"
