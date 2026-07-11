@@ -487,8 +487,8 @@ fun AccountSettingScreen(
                             painterResource(Res.drawable.ic_launcher_foreground),
                             contentDescription = null,
                             modifier = Modifier
-                                .clip(CircleShape)
-                                .size(32.dp),
+                                .size(34.dp)
+                                .clip(RoundedCornerShape(8.dp)),
                         )
                     },
                     modifier = Modifier.combinedClickable(

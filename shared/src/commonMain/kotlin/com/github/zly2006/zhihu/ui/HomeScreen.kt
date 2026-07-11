@@ -54,7 +54,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowCircleUp
 import androidx.compose.material.icons.filled.CopyAll
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.MarkUnreadChatAlt
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Refresh
@@ -92,10 +91,8 @@ import coil3.compose.AsyncImage
 import com.github.zly2006.zhihu.navigation.Account
 import com.github.zly2006.zhihu.navigation.LocalNavigator
 import com.github.zly2006.zhihu.navigation.Notification
-import com.github.zly2006.zhihu.navigation.Pin
 import com.github.zly2006.zhihu.navigation.Search
 import com.github.zly2006.zhihu.navigation.WritePin
-import com.github.zly2006.zhihu.shared.aigc.AIGC_MARKING_ENABLED_PREFERENCE_KEY
 import com.github.zly2006.zhihu.shared.data.Feed
 import com.github.zly2006.zhihu.shared.data.RecommendationMode
 import com.github.zly2006.zhihu.shared.data.ZHIHU_ME_URL
@@ -105,12 +102,10 @@ import com.github.zly2006.zhihu.shared.data.navDestination
 import com.github.zly2006.zhihu.shared.data.target
 import com.github.zly2006.zhihu.shared.notification.rememberNotificationSettingsStore
 import com.github.zly2006.zhihu.shared.platform.UserMessageDuration
-import com.github.zly2006.zhihu.shared.platform.rememberExternalUrlOpener
 import com.github.zly2006.zhihu.shared.platform.rememberSettingsStore
 import com.github.zly2006.zhihu.shared.platform.rememberUserMessageSink
 import com.github.zly2006.zhihu.shared.ui.TopLevelReselectAction
 import com.github.zly2006.zhihu.shared.ui.topLevelReselectAction
-import com.github.zly2006.zhihu.shared.util.Log
 import com.github.zly2006.zhihu.ui.components.AnnouncementCard
 import com.github.zly2006.zhihu.ui.components.AnnouncementCardDefaults
 import com.github.zly2006.zhihu.ui.components.BlockByKeywordsDialog
@@ -130,13 +125,10 @@ import com.github.zly2006.zhihu.viewmodel.local.LocalHomeFeedViewModel
 import com.github.zly2006.zhihu.viewmodel.rememberPaginationEnvironment
 import com.github.zly2006.zhihu.viewmodel.za.AndroidHomeFeedViewModel
 import com.github.zly2006.zhihu.viewmodel.za.MixedHomeFeedViewModel
-import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
 
 const val PREFERENCE_NAME = "com.github.zly2006.zhihu_preferences"
 const val ARTICLE_USE_WEBVIEW_PREFERENCE_KEY = "webviewRender"
-const val QQ_GROUP_DISMISSED_PREFERENCE_KEY = "dismissQQGroup3"
-const val AIGC_MARKING_ANNOUNCEMENT_DISMISSED_PREFERENCE_KEY = "dismissAigcMarkingAnnouncement"
 const val HOME_TOP_ACTIONS_TAG = "home_top_actions"
 const val HOME_SEARCH_BUTTON_TAG = "home_search_button"
 const val HOME_CREATE_FAB_TAG = "home_create_fab"
@@ -148,18 +140,12 @@ const val HOME_NOTIFICATION_BUTTON_TAG = "home_notification_button"
 const val HOME_ACCOUNT_BUTTON_TAG = "home_account_button"
 const val HOME_FEED_LIST_TAG = "home_feed_list"
 const val HOME_REFRESH_BUTTON_TAG = "home_refresh_button"
-const val HOME_AUTHOR_POLL_ANNOUNCEMENT_TAG = "home_author_poll_announcement"
-
-fun homeAuthorPollAnnouncementTag(pinId: Long): String = "$HOME_AUTHOR_POLL_ANNOUNCEMENT_TAG:$pinId"
-
-private fun authorPollAnnouncementDismissedKey(announcement: HomePollAnnouncement): String =
-    "dismissAuthorPollAnnouncement_${announcement.pinId}_${announcement.pollId}"
 
 /**
  * 首页信息流页面。
  *
  * 页面顶部承载搜索、通知、账号入口等高频操作，主体是可分页的推荐信息流，底部可按设置显示可拖动刷新 FAB。
- * 设计上首页同时响应推荐算法、Duo3 账号入口迁移、更新公告、问卷提示和未读通知等状态，因此 UI 改动时要同时检查
+ * 设计上首页同时响应推荐算法、Duo3 账号入口迁移、更新公告和未读通知等状态，因此 UI 改动时要同时检查
  * `recommendationMode`、`duo3_home_account`、`showRefreshFab` 和账号面板相关路径。
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -173,7 +159,6 @@ fun HomeScreen(
     val settings = rememberSettingsStore()
     val notificationSettings = rememberNotificationSettingsStore()
     val userMessages = rememberUserMessageSink()
-    val openExternalUrl = rememberExternalUrlOpener()
 
     val duo3HomeAccount = settings.getBoolean("duo3_home_account", false)
     val showRefreshFab = settings.getBoolean("showRefreshFab", true)
@@ -194,7 +179,6 @@ fun HomeScreen(
 
     val account = rememberHomeAccountState()
     val updateAnnouncement = rememberHomeUpdateAnnouncement()
-    val installedAtLeastThreeHours = rememberHomeInstalledAtLeastThreeHours()
     val isDebuggable = rememberHomeIsDebuggable()
     val requestLogin = rememberHomeLoginRequester()
     val feedBlockActions = rememberFeedBlockActions()
@@ -206,31 +190,7 @@ fun HomeScreen(
     }
     val localHomeViewModel = viewModel as? LocalHomeFeedViewModel
 
-    val keySurveyDone = "survey_feedback_done"
-    val installed3Hours = !settings.getBoolean(keySurveyDone, false) && installedAtLeastThreeHours
     var dismissedUpdateVersion by remember { mutableStateOf<String?>(null) }
-    var aigcMarkingEnabled by remember {
-        mutableStateOf(settings.getBoolean(AIGC_MARKING_ENABLED_PREFERENCE_KEY, false))
-    }
-    var showAigcMarkingAnnouncement by remember {
-        mutableStateOf(!settings.getBoolean(AIGC_MARKING_ANNOUNCEMENT_DISMISSED_PREFERENCE_KEY, false))
-    }
-    var authorPollAnnouncements by remember {
-        mutableStateOf(emptyList<HomePollAnnouncement>())
-    }
-
-    // 首次启动提示
-    var showFilterExplainDialog by remember {
-        mutableStateOf(!settings.getBoolean("filterExplainDialogShown", false))
-    }
-    var showQQGroup by remember {
-        mutableStateOf(
-            !settings.getBoolean(
-                QQ_GROUP_DISMISSED_PREFERENCE_KEY,
-                false,
-            ),
-        )
-    }
 
     val listState = rememberLazyListState()
     var cachedScrollToTopTrigger by remember { mutableIntStateOf(scrollToTopTrigger) }
@@ -270,22 +230,6 @@ fun HomeScreen(
         } else if (viewModel.displayItems.isEmpty()) {
             // 只在第一次加载时刷新，这样可以避免在返回时刷新
             viewModel.refresh(paginationEnvironment)
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        authorPollAnnouncements = try {
-            paginationEnvironment
-                .fetchJson(ZHIHU_PLUS_AUTHOR_PINS_URL, "")
-                ?.let(::decodeHomePollAnnouncements)
-                ?.filterNot { it.isVoted }
-                ?.take(3)
-                ?: emptyList()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e("HomeScreen", "Failed to load author poll announcements", e)
-            emptyList()
         }
     }
 
@@ -519,92 +463,6 @@ fun HomeScreen(
                                     }
                                 },
                                 colors = AnnouncementCardDefaults.colorsImportant(),
-                            )
-                            AnnouncementCard(
-                                visible = showQQGroup,
-                                title = "欢迎加入 QQ 群",
-                                leadingIcon = { Icon(Icons.Default.MarkUnreadChatAlt, contentDescription = null) },
-                                content = "欢迎加入 Zhihu++ QQ 群。1 & 2 群已满，我们新建了 3 群。已入群的朋友请不要重复加群。",
-                                accept = { Text("加入") },
-                                onAccept = {
-                                    openExternalUrl("https://qm.qq.com/q/AaCml6Un4G")
-                                },
-                                dismiss = { Text("关闭") },
-                                onDismiss = {
-                                    settings.putBoolean(QQ_GROUP_DISMISSED_PREFERENCE_KEY, true)
-                                    showQQGroup = false
-                                },
-                                colors = AnnouncementCardDefaults.colorsVariant(),
-                            )
-                            AnnouncementCard(
-                                visible = !aigcMarkingEnabled && showAigcMarkingAnnouncement,
-                                title = "AIGC 标记",
-                                leadingIcon = { Icon(Icons.Default.Flag, contentDescription = null) },
-                                content = "为了减轻知乎上 AI 生成的文章对用户的困扰，你可以加入我们一起标记 AIGC。开启后会把你正在浏览的内容发送到我们的服务器，用来显示其他用户是否认为其疑似 AIGC。此功能默认关闭，不会发送隐私信息。",
-                                accept = { Text("开启") },
-                                onAccept = {
-                                    settings.putBoolean(AIGC_MARKING_ENABLED_PREFERENCE_KEY, true)
-                                    settings.putBoolean(AIGC_MARKING_ANNOUNCEMENT_DISMISSED_PREFERENCE_KEY, true)
-                                    aigcMarkingEnabled = true
-                                    showAigcMarkingAnnouncement = false
-                                },
-                                dismiss = { Text("关闭") },
-                                onDismiss = {
-                                    settings.putBoolean(AIGC_MARKING_ANNOUNCEMENT_DISMISSED_PREFERENCE_KEY, true)
-                                    showAigcMarkingAnnouncement = false
-                                },
-                            )
-                            authorPollAnnouncements.forEach { announcement ->
-                                val dismissedKey = authorPollAnnouncementDismissedKey(announcement)
-                                val visible = !settings.getBoolean(dismissedKey, false)
-                                AnnouncementCard(
-                                    modifier = Modifier.testTag(homeAuthorPollAnnouncementTag(announcement.pinId)),
-                                    visible = visible,
-                                    title = "请给未来的知乎++提出建议",
-                                    leadingIcon = { Icon(Icons.Default.Flag, contentDescription = null) },
-                                    content = buildString {
-                                        append(announcement.title)
-                                        val details = buildList {
-                                            if (announcement.optionCount > 0) {
-                                                add("${announcement.optionCount} 个选项")
-                                            }
-                                            if (announcement.memberCount > 0) {
-                                                add("${announcement.memberCount} 人已参与")
-                                            }
-                                            if (announcement.isVoted) {
-                                                add("已投票")
-                                            }
-                                        }
-                                        if (details.isNotEmpty()) {
-                                            append("\n")
-                                            append(details.joinToString(" · "))
-                                        }
-                                    },
-                                    accept = { Text("去投票") },
-                                    onAccept = {
-                                        navigator.onNavigate(Pin(announcement.pinId))
-                                    },
-                                    dismiss = { Text("关闭") },
-                                    onDismiss = {
-                                        settings.putBoolean(dismissedKey, true)
-                                        authorPollAnnouncements = authorPollAnnouncements.filterNot {
-                                            it.pinId == announcement.pinId
-                                        }
-                                    },
-                                )
-                            }
-                            AnnouncementCard(
-                                visible = showFilterExplainDialog,
-                                title = "为什么有的内容突然消失了？",
-                                leadingIcon = { Icon(Icons.AutoMirrored.Default.HelpOutline, contentDescription = null) },
-                                content = "知乎++会默认屏蔽知乎盐选、知乎广告平台、知乎学堂、微信公众号文章。" +
-                                    "除此之外，您也可以手动屏蔽的用户、话题、问题等内容。" +
-                                    "由于我们需要更详细的数据来精准屏蔽，而获取数据需要时间，所以他们会闪一下然后消失。",
-                                dismiss = { Text("好") },
-                                onDismiss = {
-                                    settings.putBoolean("filterExplainDialogShown", true)
-                                    showFilterExplainDialog = false
-                                },
                             )
                         }
                     },
