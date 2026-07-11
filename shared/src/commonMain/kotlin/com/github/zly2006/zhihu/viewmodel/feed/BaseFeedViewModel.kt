@@ -116,9 +116,10 @@ abstract class BaseFeedViewModel : PaginationViewModel<Feed>(typeOf<Feed>()) {
  * Only items from [HomeFeedFilterResult.foregroundItems] are touched, so older or unrelated cards in the
  * list keep their current state. A foreground item is removed when it is absent from
  * [HomeFeedFilterResult.filteredItems], and replaced when the final filter pipeline returns a matching item
- * with the same [FeedDisplayItem.stableKey]. This lets delayed quality/content filters swap an already
- * rendered card with an `已屏蔽` placeholder while preserving existing raw content if the replacement has not
- * loaded one. Reverse-block mode is intentionally ignored because it renders filtered items directly.
+ * with the same [FeedDisplayItem.stableKey]. When blocked content display is enabled, delayed
+ * quality/content filters can swap an already rendered card with an `已屏蔽` placeholder while preserving
+ * existing raw content if the replacement has not loaded one. Reverse-block mode is intentionally ignored
+ * because it renders filtered items directly.
  */
 internal fun MutableList<FeedDisplayItem>.replaceHomeFeedItemsWithFilteredResult(filterResult: HomeFeedFilterResult) {
     if (filterResult.reverseBlock) return
@@ -134,7 +135,7 @@ internal fun MutableList<FeedDisplayItem>.replaceHomeFeedItemsWithFilteredResult
         }
 
         val filteredVersion = filteredItemsByKey[item.stableKey]
-        if (filteredVersion == null) {
+        if (filteredVersion == null || (filteredVersion.isFiltered && !filterResult.showBlockedContent)) {
             removeAt(index)
         } else {
             this[index] = filteredVersion.copy(raw = filteredVersion.raw ?: item.raw)

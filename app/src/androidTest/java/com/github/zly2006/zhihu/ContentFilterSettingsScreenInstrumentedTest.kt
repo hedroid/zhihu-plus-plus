@@ -82,6 +82,9 @@ class ContentFilterSettingsScreenInstrumentedTest {
         composeRule.onNodeWithTag(FILTER_FOLLOWED_USER_CONTENT_TAG).performClick()
         assertEquals(true, preferences().getBoolean("filterFollowedUserContent", false))
 
+        composeRule.onNodeWithTag(SHOW_BLOCKED_FEED_CONTENT_TAG).performClick()
+        assertEquals(true, preferences().getBoolean("showBlockedFeedContent", false))
+
         composeRule.setScreenContent {
             ContentFilterSettingsScreen()
         }
@@ -92,6 +95,7 @@ class ContentFilterSettingsScreenInstrumentedTest {
         assertEquals(false, preferences().getBoolean("loginForRecommendation", true))
         assertEquals(true, preferences().getBoolean("enableContentFilter", false))
         assertEquals(true, preferences().getBoolean("filterFollowedUserContent", false))
+        assertEquals(true, preferences().getBoolean("showBlockedFeedContent", false))
     }
 
     @Test
@@ -141,6 +145,7 @@ class ContentFilterSettingsScreenInstrumentedTest {
         const val LOGIN_FOR_RECOMMENDATION_TAG = "contentFilterSettings:loginForRecommendation"
         const val ENABLE_CONTENT_FILTER_TAG = "contentFilterSettings:enableContentFilter"
         const val FILTER_FOLLOWED_USER_CONTENT_TAG = "contentFilterSettings:filterFollowedUserContent"
+        const val SHOW_BLOCKED_FEED_CONTENT_TAG = "contentFilterSettings:showBlockedFeedContent"
         const val BLOCKLIST_TAG = "contentFilterSettings:blocklist"
         const val BLOCKED_FEED_HISTORY_TAG = "contentFilterSettings:blockedFeedHistory"
     }

@@ -27,7 +27,6 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 const val ZHIHU_PLUS_PLUS_GITHUB_LATEST_RELEASE_URL = "https://api.github.com/repos/hedroid/zhihu-plus-plus/releases/latest"
-const val ZHIHU_PLUS_PLUS_GITHUB_NIGHTLY_RELEASE_URL = "https://api.github.com/repos/hedroid/zhihu-plus-plus/releases/tags/nightly"
 
 @Serializable
 data class GithubRelease(
@@ -56,19 +55,6 @@ suspend fun fetchLatestZhihuRelease(
     githubToken: String?,
 ): GithubRelease = client
     .get(ZHIHU_PLUS_PLUS_GITHUB_LATEST_RELEASE_URL) {
-        githubToken?.let { token ->
-            headers {
-                append(HttpHeaders.Authorization, "Bearer $token")
-            }
-        }
-    }.raiseForStatus()
-    .body<GithubRelease>()
-
-suspend fun fetchNightlyZhihuRelease(
-    client: HttpClient,
-    githubToken: String?,
-): GithubRelease = client
-    .get(ZHIHU_PLUS_PLUS_GITHUB_NIGHTLY_RELEASE_URL) {
         githubToken?.let { token ->
             headers {
                 append(HttpHeaders.Authorization, "Bearer $token")
