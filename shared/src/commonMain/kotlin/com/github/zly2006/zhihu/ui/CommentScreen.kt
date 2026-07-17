@@ -134,14 +134,8 @@ import com.github.zly2006.zhihu.shared.platform.rememberImageSharer
 import com.github.zly2006.zhihu.shared.platform.rememberSettingsStore
 import com.github.zly2006.zhihu.shared.util.twoDigitString
 import com.github.zly2006.zhihu.shared.viewmodel.CommentItem
-import com.github.zly2006.zhihu.ui.components.PageTurnGuideOverlay
-import com.github.zly2006.zhihu.ui.components.PageTurnGuideState
-import com.github.zly2006.zhihu.ui.components.PageTurnLazyListEffect
-import com.github.zly2006.zhihu.ui.subscreens.DEFAULT_PAGE_TURN_PERCENT
 import com.github.zly2006.zhihu.ui.subscreens.PREF_FONT_SIZE
 import com.github.zly2006.zhihu.ui.subscreens.PREF_LINE_HEIGHT
-import com.github.zly2006.zhihu.ui.subscreens.PREF_PAGE_TURN_PERCENT
-import com.github.zly2006.zhihu.ui.subscreens.PREF_SHOW_PAGE_TURN_GUIDE
 import com.github.zly2006.zhihu.viewmodel.comment.BaseCommentViewModel
 import com.github.zly2006.zhihu.viewmodel.comment.ChildCommentViewModel
 import com.github.zly2006.zhihu.viewmodel.comment.CommentSortOrder
@@ -421,15 +415,15 @@ fun CommentScreen(
     content: () -> NavDestination,
     activeCommentItem: CommentModel? = null,
     onChildCommentClick: (CommentModel) -> Unit,
+    commentInput: String,
+    onCommentInputChange: (String) -> Unit,
     listState: LazyListState = rememberLazyListState(),
     testOverrides: CommentScreenTestOverrides? = null,
-    skipPageTurn: Boolean = false,
 ) {
     val paginationEnvironment = rememberPaginationEnvironment(allowGuestAccess = false)
-    var commentInput by remember { mutableStateOf("") }
+    val resolvedContent = content()
     var isSending by remember { mutableStateOf(false) }
     var replyToComment by remember { mutableStateOf<CommentModel?>(null) }
-    val resolvedContent = content()
     val viewModelKey = commentViewModelKey(resolvedContent)
 
     // 根据内容类型选择合适的ViewModel
@@ -480,15 +474,6 @@ fun CommentScreen(
         }
     }
     val coroutineScope = rememberCoroutineScope()
-    val pageKeySettings = rememberSettingsStore()
-    val pageTurnPercent = remember { pageKeySettings.getInt(PREF_PAGE_TURN_PERCENT, DEFAULT_PAGE_TURN_PERCENT) }
-    val showPageTurnGuide = remember { pageKeySettings.getBoolean(PREF_SHOW_PAGE_TURN_GUIDE, false) }
-    val guideState = remember { PageTurnGuideState() }
-    PageTurnLazyListEffect(listState, pageTurnPercent, guideState, skip = skipPageTurn)
-
-    if (showPageTurnGuide && guideState.lastDirection != 0 && listState.isScrollInProgress && !guideState.isScrolling) {
-        guideState.lastDirection = 0
-    }
 
     // 提交评论函数
     fun submitComment() {
@@ -501,7 +486,7 @@ fun CommentScreen(
             environment = paginationEnvironment,
             replyToCommentId = replyToComment?.item?.id,
         ) {
-            commentInput = ""
+            onCommentInputChange("")
             replyToComment = null
             isSending = false
             coroutineScope.launch {
@@ -807,34 +792,8 @@ fun CommentScreen(
                                         }
                                     }
                                 }
-
-                                if (viewModel.isEnd && viewModel.allData.isNotEmpty()) {
-                                    item(key = "end_indicator") {
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(vertical = 12.dp),
-                                            contentAlignment = Alignment.Center,
-                                        ) {
-                                            Text(
-                                                "— · —",
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                                fontSize = 14.sp,
-                                            )
-                                        }
-                                    }
-                                }
                             }
                         }
-                    }
-
-                    if (showPageTurnGuide) {
-                        PageTurnGuideOverlay(
-                            pageTurnPercent,
-                            topInsetPx = listState.layoutInfo.beforeContentPadding.toFloat(),
-                            bottomInsetPx = listState.layoutInfo.afterContentPadding.toFloat(),
-                            lastDirection = guideState.lastDirection,
-                        )
                     }
                 }
 
@@ -902,7 +861,7 @@ fun CommentScreen(
                         ) {
                             BasicTextField(
                                 value = commentInput,
-                                onValueChange = { commentInput = it },
+                                onValueChange = onCommentInputChange,
                                 modifier = Modifier
                                     .weight(1f)
                                     .testTag(COMMENT_INPUT_TAG),
