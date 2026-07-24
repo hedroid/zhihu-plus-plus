@@ -19,6 +19,8 @@ package com.github.zly2006.zhihu.markdown
 
 import com.hrm.markdown.parser.ast.ContainerNode
 import com.hrm.markdown.parser.ast.Figure
+import com.hrm.markdown.parser.ast.FootnoteDefinition
+import com.hrm.markdown.parser.ast.FootnoteReference
 import com.hrm.markdown.parser.ast.InlineMath
 import com.hrm.markdown.parser.ast.ListBlock
 import com.hrm.markdown.parser.ast.ListItem
@@ -195,6 +197,30 @@ class MdAstTest {
     }
 
     @Test
+    fun nested_list_without_preceding_item_should_keep_its_items() {
+        val document = htmlToMdAst(
+            """
+            <h3>1.2 国际带宽分配</h3>
+            <ul><ul>
+              <li>电信的国际带宽总量最大，约为7.7T</li>
+              <li>带宽分配较为均衡，各省都有一定的国际带宽</li>
+            </ul></ul>
+            """.trimIndent(),
+        )
+        val list = document.children.filterIsInstance<ListBlock>().single()
+        val items = list.children.filterIsInstance<ListItem>()
+
+        assertEquals(2, items.size)
+        assertEquals(
+            listOf(
+                "电信的国际带宽总量最大，约为7.7T",
+                "带宽分配较为均衡，各省都有一定的国际带宽",
+            ),
+            items.map { it.plainText() },
+        )
+    }
+
+    @Test
     fun preview_image_urls_should_keep_document_order_and_drop_duplicates() {
         val document = htmlToMdAst(
             """
@@ -216,6 +242,33 @@ class MdAstTest {
     }
 
     @Test
+    fun issue_495_fixture_should_build_complete_ast_before_viewport_layout() {
+        val html = File("../app/src/androidTest/assets/issue-495-answer.html").readText()
+        val document = htmlToMdAst(html)
+        val nodes = document.allNodes()
+
+        assertTrue(document.children.size > 100)
+        assertEquals(406, nodes.size)
+        assertEquals(148, nodes.count { it is MathBlock || it is InlineMath })
+    }
+
+    @Test
+    fun markdown_footnote_definition_should_keep_its_content_as_blocks() {
+        val document = markdownToMdAst(
+            """
+            [^note]: Footnote content.
+
+            Text with [^note].
+            """.trimIndent(),
+        )
+        val footnote = document.children.filterIsInstance<FootnoteDefinition>().single()
+        val paragraph = footnote.children.single() as Paragraph
+
+        assertEquals("Footnote content.", (paragraph.children.single() as Text).literal)
+        assertEquals(1, document.allNodes().count { it is FootnoteReference })
+    }
+
+    @Test
     fun extracted_answer_content_should_keep_equation_as_math_not_figure() {
         val htmlFile = File(
             requireNotNull(javaClass.classLoader?.getResource("zhihu_answer_2035661632110585441_content.html")).toURI(),
@@ -233,12 +286,12 @@ class MdAstTest {
         assertFalse(nodes.any { it is Figure && it.imageUrl.contains("/equation?tex=") })
     }
 
-    private fun Node.allNodes(): List<Node> =
-        listOf(this) + if (this is ContainerNode) children.flatMap { it.allNodes() } else emptyList()
-
     private fun Node.plainText(): String = when (this) {
         is Text -> literal
         is ContainerNode -> children.joinToString(separator = "") { it.plainText() }
         else -> ""
     }
 }
+
+internal fun Node.allNodes(): List<Node> =
+    listOf(this) + if (this is ContainerNode) children.flatMap { it.allNodes() } else emptyList()
