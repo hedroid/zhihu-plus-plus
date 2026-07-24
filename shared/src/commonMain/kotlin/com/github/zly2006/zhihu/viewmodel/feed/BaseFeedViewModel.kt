@@ -41,6 +41,16 @@ abstract class BaseFeedViewModel : PaginationViewModel<Feed>(typeOf<Feed>()) {
         addDisplayItems(data.flattenFeeds().map { createDisplayItem(environment, it) })
     }
 
+    protected suspend fun processResponseWithContentFilters(
+        environment: PaginationEnvironment,
+        data: List<Feed>,
+        rawData: JsonArray,
+    ) {
+        super.processResponse(environment, data, rawData)
+        val items = data.flattenFeeds().map { createDisplayItem(environment, it) }
+        addDisplayItems(environment.applyFeedContentFilters(items))
+    }
+
     override fun refresh(environment: PaginationEnvironment) {
         displayItems.clear()
         super.refresh(environment)

@@ -337,6 +337,8 @@ interface MobileHomeFeedEnvironment : ZhihuApiEnvironment {
 interface FeedDisplayEnvironment {
     fun feedDisplaySettings(): FeedDisplaySettings = FeedDisplaySettings()
 
+    suspend fun applyFeedContentFilters(items: List<FeedDisplayItem>): List<FeedDisplayItem> = items
+
     suspend fun applyHomeFeedFilters(items: List<FeedDisplayItem>): HomeFeedFilterResult =
         HomeFeedFilterResult(
             foregroundItems = items,

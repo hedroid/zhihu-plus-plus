@@ -228,6 +228,7 @@ class DesktopPaginationEnvironment(
         ).filter(items)
         val filteredItems = FeedDisplayFilterPipeline(
             settings = settings,
+            showBlockedContent = showBlockedContent,
             contentDetailProvider = ContentDetailProvider(::getOrFetchContentDetail),
             contentFilterPipeline = FeedContentFilterPipeline(
                 settings = settings,
@@ -248,6 +249,28 @@ class DesktopPaginationEnvironment(
             reverseBlock = settings.reverseBlock,
             showBlockedContent = showBlockedContent,
         )
+    }
+
+    override suspend fun applyFeedContentFilters(items: List<FeedDisplayItem>): List<FeedDisplayItem> {
+        val settings = settingsStore.toFeedFilterSettings()
+        val showBlockedContent = settingsStore.getBoolean("showBlockedFeedContent", false)
+        return FeedDisplayFilterPipeline(
+            settings = settings,
+            showBlockedContent = showBlockedContent,
+            contentDetailProvider = ContentDetailProvider(::getOrFetchContentDetail),
+            contentFilterPipeline = FeedContentFilterPipeline(
+                settings = settings,
+                blockedKeywordDao = contentFilterDb.blockedKeywordDao(),
+                blockedUserDao = contentFilterDb.blockedUserDao(),
+                blockedTopicDao = contentFilterDb.blockedTopicDao(),
+                blockedKeywordService = BlockedKeywordService(
+                    keywordDao = contentFilterDb.blockedKeywordDao(),
+                    recordDao = contentFilterDb.blockedContentRecordDao(),
+                    semanticMatcher = null,
+                ),
+            ),
+            blockedFeedRecordDao = contentFilterDb.blockedFeedRecordDao(),
+        ).filter(items)
     }
 
     override suspend fun recordContentInteraction(feed: Feed) {
