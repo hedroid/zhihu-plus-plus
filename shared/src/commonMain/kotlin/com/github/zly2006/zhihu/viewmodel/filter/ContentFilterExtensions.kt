@@ -23,6 +23,7 @@ import com.github.zly2006.zhihu.navigation.NavDestination
 import com.github.zly2006.zhihu.navigation.Pin
 import com.github.zly2006.zhihu.shared.data.AdvertisementFeed
 import com.github.zly2006.zhihu.shared.data.DataHolder
+import com.github.zly2006.zhihu.shared.data.Feed
 import com.github.zly2006.zhihu.shared.data.FeedDisplayItem
 import com.github.zly2006.zhihu.shared.data.navDestination
 import com.github.zly2006.zhihu.shared.data.target
@@ -381,10 +382,17 @@ data class FeedContentIdentity(
 
 fun FeedDisplayItem.resolveContentIdentity(): FeedContentIdentity {
     val identity = navDestination?.let(ContentOpenEventSupport::toTrackedContentIdentity)
-    return if (identity != null) {
-        FeedContentIdentity(identity.type, identity.id)
-    } else {
-        FeedContentIdentity("unknown", navDestination.hashCode().toString())
+    if (identity != null) {
+        return FeedContentIdentity(identity.type, identity.id)
+    }
+
+    return when (val target = feed?.target) {
+        is Feed.AnswerTarget -> FeedContentIdentity(ContentType.ANSWER, target.id.toString())
+        is Feed.ArticleTarget -> FeedContentIdentity(ContentType.ARTICLE, target.id.toString())
+        is Feed.QuestionTarget -> FeedContentIdentity(ContentType.QUESTION, target.id.toString())
+        is Feed.PinTarget -> FeedContentIdentity(ContentType.PIN, target.id.toString())
+        is Feed.VideoTarget -> FeedContentIdentity(ContentType.VIDEO, target.id.toString())
+        null -> FeedContentIdentity("unknown", navDestination.hashCode().toString())
     }
 }
 
@@ -400,12 +408,12 @@ fun FeedDisplayItem.toFilterableContent(
         is DataHolder.Pin -> rawContent.contentHtml
         else -> null
     } ?: content ?: summary,
-    authorName = authorName,
-    authorId = rawContent.author?.id,
+    authorName = authorName ?: feed?.target?.author?.name,
+    authorId = rawContent.author?.id ?: feed?.target?.author?.id,
     contentId = identity.id,
     contentType = identity.type,
     raw = rawContent,
-    isFollowing = rawContent.author?.isFollowing ?: false,
+    isFollowing = rawContent.author?.isFollowing ?: feed?.target?.author?.isFollowing ?: false,
     questionId = (rawContent as? DataHolder.Answer)?.question?.id,
     url = feed?.target?.url,
     feedJson = feed?.let { runCatching { feedFilterRecordJson.encodeToString(it) }.getOrNull() },

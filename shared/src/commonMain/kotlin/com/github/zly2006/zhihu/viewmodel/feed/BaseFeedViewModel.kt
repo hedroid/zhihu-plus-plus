@@ -28,6 +28,7 @@ import com.github.zly2006.zhihu.viewmodel.FeedDisplayEnvironment
 import com.github.zly2006.zhihu.viewmodel.HomeFeedFilterResult
 import com.github.zly2006.zhihu.viewmodel.PaginationEnvironment
 import com.github.zly2006.zhihu.viewmodel.PaginationViewModel
+import com.github.zly2006.zhihu.viewmodel.visibleBlockedItems
 import kotlinx.serialization.json.JsonArray
 import kotlin.reflect.typeOf
 
@@ -48,7 +49,8 @@ abstract class BaseFeedViewModel : PaginationViewModel<Feed>(typeOf<Feed>()) {
     ) {
         super.processResponse(environment, data, rawData)
         val items = data.flattenFeeds().map { createDisplayItem(environment, it) }
-        addDisplayItems(environment.applyFeedContentFilters(items))
+        val filteredItems = environment.applyFeedContentFilters(items)
+        addDisplayItems(filteredItems.visibleBlockedItems(environment.feedDisplaySettings().showBlockedContent))
     }
 
     override fun refresh(environment: PaginationEnvironment) {
