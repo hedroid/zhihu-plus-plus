@@ -207,6 +207,7 @@ fun interface ContentDetailProvider {
 
 class FeedDisplayFilterPipeline(
     private val settings: FeedFilterSettings,
+    private val showBlockedContent: Boolean = false,
     private val contentDetailProvider: ContentDetailProvider,
     private val contentFilterPipeline: FeedContentFilterPipeline,
     private val blockedFeedRecordDao: BlockedFeedRecordDao,
@@ -279,7 +280,23 @@ class FeedDisplayFilterPipeline(
             saveBlockedFeedRecords(blockedFeedRecordDao, allBlocked)
         }
 
-        return (followedUserItems + filteredOtherItems).filterDetailsKeywords()
+        val blockedById = allBlocked.associate { (content, reason) -> content.contentId to reason }
+        val blockedPlaceholders = if (showBlockedContent) {
+            otherItems.mapNotNull { item ->
+                blockedById[item.resolveContentIdentity().id]?.let { reason ->
+                    item.copy(
+                        title = "已屏蔽",
+                        summary = reason,
+                        isFiltered = true,
+                        raw = null,
+                    )
+                }
+            }
+        } else {
+            emptyList()
+        }
+
+        return (followedUserItems + filteredOtherItems + blockedPlaceholders).filterDetailsKeywords()
     }
 
     private suspend fun resolveRawContent(item: FeedDisplayItem): DataHolder.Content = when (val dest = item.navDestination) {
