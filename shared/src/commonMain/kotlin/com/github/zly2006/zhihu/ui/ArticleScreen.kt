@@ -1622,6 +1622,7 @@ fun ArticleScreen(
                                 RenderMarkdown(
                                     html = viewModel.content,
                                     modifier = Modifier.articleMarkdownSelectionWorkaround(),
+                                    scrollState = scrollState,
                                     selectable = true,
                                     enableScroll = false,
                                     header = {},
