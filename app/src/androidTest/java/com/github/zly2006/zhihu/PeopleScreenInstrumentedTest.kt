@@ -23,6 +23,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -50,6 +51,9 @@ import com.github.zly2006.zhihu.test.performVerticalSwipeCycle
 import com.github.zly2006.zhihu.test.resetAppPreferences
 import com.github.zly2006.zhihu.test.seedViewModel
 import com.github.zly2006.zhihu.test.setScreenContent
+import com.github.zly2006.zhihu.ui.AccountSettingsAccountState
+import com.github.zly2006.zhihu.ui.PEOPLE_SCREEN_ACTION_FAB_TAG
+import com.github.zly2006.zhihu.ui.PEOPLE_SCREEN_ACTION_MENU_TAG
 import com.github.zly2006.zhihu.ui.PEOPLE_SCREEN_ACTIVITIES_LIST_TAG
 import com.github.zly2006.zhihu.ui.PEOPLE_SCREEN_ANSWERS_LIST_TAG
 import com.github.zly2006.zhihu.ui.PEOPLE_SCREEN_ANSWER_COUNT_TAG
@@ -78,6 +82,8 @@ import com.github.zly2006.zhihu.ui.PEOPLE_SCREEN_RECOMMENDATION_BLOCK_BUTTON_TAG
 import com.github.zly2006.zhihu.ui.PEOPLE_SCREEN_ROOT_TAG
 import com.github.zly2006.zhihu.ui.PEOPLE_SCREEN_SEARCH_BUTTON_TAG
 import com.github.zly2006.zhihu.ui.PEOPLE_SCREEN_SUBSCRIPTIONS_LIST_TAG
+import com.github.zly2006.zhihu.ui.PEOPLE_SCREEN_SUBSCRIPTION_DROPDOWN_TAG
+import com.github.zly2006.zhihu.ui.PEOPLE_SCREEN_TAB_ROW_TAG
 import com.github.zly2006.zhihu.ui.PeopleScreen
 import com.github.zly2006.zhihu.ui.PersonViewModel
 import io.ktor.http.HttpMethod
@@ -138,16 +144,72 @@ class PeopleScreenInstrumentedTest {
         composeRule.onNodeWithTag(PEOPLE_SCREEN_FOLLOWER_COUNT_TAG).assertIsDisplayed()
         composeRule.onNodeWithTag(PEOPLE_SCREEN_FOLLOWING_COUNT_TAG).assertIsDisplayed()
 
+        composeRule
+            .onNodeWithContentDescription("用户关系与屏蔽操作", useUnmergedTree = true)
+            .assertIsDisplayed()
+        composeRule.onNodeWithTag(PEOPLE_SCREEN_ACTION_FAB_TAG).performClick()
+        composeRule.onNodeWithTag(PEOPLE_SCREEN_ACTION_MENU_TAG).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("关注", useUnmergedTree = true).assertIsDisplayed()
+        val initialActionWidth =
+            composeRule
+                .onNodeWithTag(PEOPLE_SCREEN_FOLLOW_BUTTON_TAG)
+                .fetchSemanticsNode()
+                .boundsInRoot.width
         composeRule.onNodeWithTag(PEOPLE_SCREEN_FOLLOW_BUTTON_TAG).performClick()
+        composeRule.waitUntil("Expected follow state to update", timeoutMillis = 5_000) {
+            viewModel.isFollowing
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(PEOPLE_SCREEN_ACTION_FAB_TAG).performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(PEOPLE_SCREEN_ACTION_MENU_TAG).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("取消关注", useUnmergedTree = true).assertIsDisplayed()
+        val updatedActionWidth =
+            composeRule
+                .onNodeWithTag(PEOPLE_SCREEN_FOLLOW_BUTTON_TAG)
+                .fetchSemanticsNode()
+                .boundsInRoot.width
+        assertEquals(initialActionWidth, updatedActionWidth, 0.5f)
+
         composeRule.onNodeWithTag(PEOPLE_SCREEN_BLOCK_BUTTON_TAG).performClick()
+        composeRule.waitUntil("Expected block state to update", timeoutMillis = 5_000) {
+            viewModel.isBlocking
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(PEOPLE_SCREEN_ACTION_FAB_TAG).performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(PEOPLE_SCREEN_ACTION_MENU_TAG).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("取消拉黑", useUnmergedTree = true).assertIsDisplayed()
+        val recommendationBlockStateBeforeClick = viewModel.isBlockedInRecommendations
         composeRule.onNodeWithTag(PEOPLE_SCREEN_RECOMMENDATION_BLOCK_BUTTON_TAG).performClick()
+        composeRule.waitUntil("Expected recommendation block state to update", timeoutMillis = 5_000) {
+            viewModel.isBlockedInRecommendations != recommendationBlockStateBeforeClick
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(PEOPLE_SCREEN_ACTION_FAB_TAG).performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(PEOPLE_SCREEN_ACTION_MENU_TAG).assertIsDisplayed()
+        composeRule
+            .onNodeWithContentDescription(
+                if (viewModel.isBlockedInRecommendations) "取消屏蔽推荐" else "屏蔽推荐",
+                useUnmergedTree = true,
+            ).assertIsDisplayed()
+        val questionAuthorBlockStateBeforeClick = viewModel.isBlockedAsQuestionAuthor
         composeRule.onNodeWithTag(PEOPLE_SCREEN_QUESTION_AUTHOR_BLOCK_BUTTON_TAG).performClick()
         composeRule.waitUntil("Expected profile actions to update state", timeoutMillis = 5_000) {
             viewModel.isFollowing &&
                 viewModel.isBlocking &&
-                viewModel.isBlockedInRecommendations &&
-                viewModel.isBlockedAsQuestionAuthor
+                viewModel.isBlockedAsQuestionAuthor != questionAuthorBlockStateBeforeClick
         }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(PEOPLE_SCREEN_ACTION_FAB_TAG).performClick()
+        composeRule.waitForIdle()
+        composeRule
+            .onNodeWithContentDescription(
+                if (viewModel.isBlockedAsQuestionAuthor) "取消屏蔽其提问" else "屏蔽其提问",
+                useUnmergedTree = true,
+            ).assertIsDisplayed()
+        composeRule.onNodeWithTag(PEOPLE_SCREEN_ACTION_FAB_TAG).performClick()
         composeRule.waitUntilRequestCount(HttpMethod.Post, "members/${ROOT_PERSON.urlToken}/followers", 1)
         composeRule.waitUntilRequestCount(HttpMethod.Post, "members/${ROOT_PERSON.urlToken}/actions/block", 1)
 
@@ -191,6 +253,25 @@ class PeopleScreenInstrumentedTest {
             ),
             navigator.destinations,
         )
+    }
+
+    @Test
+    fun ownProfileDoesNotShowActionMenu() {
+        seededViewModel()
+        composeRule.setScreenContent {
+            PeopleScreen(
+                person = ROOT_PERSON.copy(),
+                currentAccount = AccountSettingsAccountState(
+                    login = true,
+                    id = ROOT_PERSON.id,
+                    urlToken = ROOT_PERSON.urlToken,
+                ),
+            )
+        }
+
+        composeRule.onNodeWithTag(PEOPLE_SCREEN_HEADER_TAG).assertIsDisplayed()
+        composeRule.onAllNodesWithTag(PEOPLE_SCREEN_ACTION_FAB_TAG).assertCountEquals(0)
+        composeRule.onAllNodesWithTag(PEOPLE_SCREEN_ACTION_MENU_TAG).assertCountEquals(0)
     }
 
     @Test
@@ -351,6 +432,11 @@ class PeopleScreenInstrumentedTest {
             .fetchSemanticsNodes()
             .single()
             .boundsInRoot
+        val tabRowBounds = composeRule
+            .onAllNodesWithTag(PEOPLE_SCREEN_TAB_ROW_TAG)
+            .fetchSemanticsNodes()
+            .single()
+            .boundsInRoot
         assertTrue(
             "搜索按钮不应占用 TopAppBar actions 槽位并挤压 header，headerBounds=$headerBounds searchBounds=$searchBounds",
             searchBounds.left < headerBounds.right,
@@ -358,6 +444,10 @@ class PeopleScreenInstrumentedTest {
         assertTrue(
             "搜索按钮应位于用户信息首屏右上区域，不能落到数据/操作区附近，avatarBounds=$avatarBounds searchBounds=$searchBounds",
             searchBounds.center.y < avatarBounds.bottom,
+        )
+        assertTrue(
+            "用户信息与标签栏之间不应残留原操作按钮区域，headerBounds=$headerBounds tabRowBounds=$tabRowBounds",
+            tabRowBounds.top - headerBounds.bottom in 0f..(avatarBounds.height * 0.4f),
         )
 
         composeRule.onNodeWithTag(PEOPLE_SCREEN_SEARCH_BUTTON_TAG).assertIsDisplayed().performClick()
@@ -379,7 +469,7 @@ class PeopleScreenInstrumentedTest {
         /*
          * Expected behavior:
          * 1. The profile tab row exposes a Zhihu-Web-style "关注订阅" entry.
-         * 2. Inside that page, non-duplicated official entry names are available as chips:
+         * 2. Inside that page, non-duplicated official entry names are available from one dropdown:
          *    我订阅的专栏、关注的话题、关注的问题、关注的收藏夹.
          * 3. Followed questions and followed collections use native navigation destinations,
          *    matching the app's existing question and collection-detail screens.
@@ -388,18 +478,19 @@ class PeopleScreenInstrumentedTest {
         val navigator = setPeopleScreen(person = ROOT_PERSON.copy(jumpTo = "关注订阅"))
 
         composeRule.onNodeWithTag(PEOPLE_SCREEN_SUBSCRIPTIONS_LIST_TAG).assertIsDisplayed()
-        composeRule.onNodeWithTag("people_screen_subscription_tab_0").assertExists()
-        composeRule.onNodeWithTag("people_screen_subscription_tab_1").assertExists()
-        composeRule.onNodeWithTag("people_screen_subscription_tab_2").assertExists()
-        composeRule.onNodeWithTag("people_screen_subscription_tab_3").assertExists()
+        composeRule.onNodeWithTag(PEOPLE_SCREEN_SUBSCRIPTION_DROPDOWN_TAG).assertIsDisplayed()
+        composeRule.onNodeWithText("我订阅的专栏").assertIsDisplayed()
 
-        composeRule.onNodeWithTag("people_screen_subscription_tab_1").performClick()
+        composeRule.onNodeWithTag(PEOPLE_SCREEN_SUBSCRIPTION_DROPDOWN_TAG).performClick()
+        composeRule.onNodeWithTag("people_screen_subscription_option_1").performClick()
         composeRule.onNodeWithTag("people_screen_followed_topic_item_topic-1").assertIsDisplayed()
 
-        composeRule.onNodeWithTag("people_screen_subscription_tab_2").performClick()
+        composeRule.onNodeWithTag(PEOPLE_SCREEN_SUBSCRIPTION_DROPDOWN_TAG).performClick()
+        composeRule.onNodeWithTag("people_screen_subscription_option_2").performClick()
         composeRule.onNodeWithTag("people_screen_followed_question_item_1").performClick()
 
-        composeRule.onNodeWithTag("people_screen_subscription_tab_3").performClick()
+        composeRule.onNodeWithTag(PEOPLE_SCREEN_SUBSCRIPTION_DROPDOWN_TAG).performClick()
+        composeRule.onNodeWithTag("people_screen_subscription_option_3").performClick()
         composeRule.onNodeWithTag("people_screen_collection_item_follow-collection-1").performClick()
 
         assertEquals(
