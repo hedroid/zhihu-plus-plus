@@ -239,21 +239,23 @@ fun DailyScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
+                    Row {
                         Text(
                             "知乎日报",
-                            style = MaterialTheme.typography.titleLarge.copy(
-                                fontWeight = FontWeight.Bold,
-                            ),
-                            modifier = Modifier.testTag(DAILY_SCREEN_TITLE_TAG),
+                            modifier = Modifier
+                                .alignByBaseline()
+                                .testTag(DAILY_SCREEN_TITLE_TAG),
                         )
                         if (currentViewingDate.isNotEmpty()) {
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 currentViewingDate,
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                                 ),
-                                modifier = Modifier.testTag(DAILY_SCREEN_CURRENT_DATE_TAG),
+                                modifier = Modifier
+                                    .alignByBaseline()
+                                    .testTag(DAILY_SCREEN_CURRENT_DATE_TAG),
                             )
                         }
                     }

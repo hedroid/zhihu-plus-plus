@@ -33,6 +33,7 @@ import com.github.zly2006.zhihu.test.performVerticalSwipeCycle
 import com.github.zly2006.zhihu.test.resetAppPreferences
 import com.github.zly2006.zhihu.test.setScreenContent
 import com.github.zly2006.zhihu.ui.HOT_LIST_LIST_TAG
+import com.github.zly2006.zhihu.ui.HOT_LIST_TITLE_TAG
 import com.github.zly2006.zhihu.ui.HotListScreen
 import com.github.zly2006.zhihu.viewmodel.feed.HotListViewModel
 import org.junit.After
@@ -80,6 +81,7 @@ class HotListScreenInstrumentedTest {
             onTestLoadMore = { loadMoreCalls.incrementAndGet() },
         )
 
+        composeRule.onNodeWithTag(HOT_LIST_TITLE_TAG).assertIsDisplayed()
         composeRule.onNodeWithTag(HOT_LIST_LIST_TAG).assertIsDisplayed()
         composeRule.onNodeWithText(seedTitle(1)).assertIsDisplayed()
 

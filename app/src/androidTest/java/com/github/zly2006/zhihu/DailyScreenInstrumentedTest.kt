@@ -38,6 +38,7 @@ import com.github.zly2006.zhihu.ui.DailyScreen
 import io.ktor.http.HttpMethod
 import kotlinx.coroutines.CompletableDeferred
 import org.junit.After
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -80,6 +81,10 @@ class DailyScreenInstrumentedTest {
         composeRule.onNodeWithTag(TITLE_TAG).assertIsDisplayed()
         composeRule.onNodeWithText("知乎日报").assertIsDisplayed()
         composeRule.onNodeWithTag(CURRENT_DATE_TAG).assertTextEquals("2026年04月18日")
+        val titleBounds = composeRule.onNodeWithTag(TITLE_TAG).fetchSemanticsNode().boundsInRoot
+        val dateBounds = composeRule.onNodeWithTag(CURRENT_DATE_TAG).fetchSemanticsNode().boundsInRoot
+        assertTrue(dateBounds.left >= titleBounds.right)
+        assertTrue(dateBounds.top < titleBounds.bottom && dateBounds.bottom > titleBounds.top)
         composeRule.onNodeWithText("固定日报问题 1").assertIsDisplayed()
         composeRule.onNodeWithTag(SECTION_TAG_PREFIX + "20260418").assertIsDisplayed()
 
