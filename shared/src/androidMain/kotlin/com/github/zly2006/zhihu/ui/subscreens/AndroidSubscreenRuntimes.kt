@@ -214,7 +214,6 @@ private fun UpdateState.toSystemUpdateState(): SystemUpdateState = when (this) {
     UpdateState.Latest -> SystemUpdateState.Latest
     is UpdateState.UpdateAvailable -> SystemUpdateState.UpdateAvailable(
         version = version.toString(),
-        isNightly = isNightly,
         releaseNotes = releaseNotes,
         downloadUrl = downloadUrl,
         cnDownloadUrl = cnDownloadUrl,

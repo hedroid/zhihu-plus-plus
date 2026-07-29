@@ -16,7 +16,6 @@
  */
 
 package com.github.zly2006.zhihu.ui
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
@@ -25,6 +24,7 @@ import androidx.compose.ui.Modifier
 import com.github.zly2006.zhihu.navigation.Article
 import com.github.zly2006.zhihu.navigation.TopLevelDestination
 import com.github.zly2006.zhihu.shared.account.IosAccountStore
+import com.github.zly2006.zhihu.shared.data.RecommendationMode
 import com.github.zly2006.zhihu.shared.notification.NotificationSettingsStore
 import com.github.zly2006.zhihu.shared.platform.UserMessageSink
 import com.github.zly2006.zhihu.shared.platform.rememberUserMessageSink
@@ -80,27 +80,6 @@ private class IosNotificationEnvironment(
 @Composable
 actual fun rememberArticleHost(): ArticleHost? = null
 
-@Composable
-actual fun ArticlePreviewPreloadEffect(
-    cached: com.github.zly2006.zhihu.viewmodel.ArticleViewModel.CachedAnswerContent?,
-    isNext: Boolean,
-    title: String,
-    onImageLoadFailed: () -> Unit,
-) = Unit
-
-@Composable
-actual fun ArticleWebViewContent(
-    article: Article,
-    html: String,
-    title: String,
-    scrollState: ScrollState,
-    rememberedScrollY: Int,
-    rememberedScrollYSync: Boolean,
-    onRememberedScrollYSyncChange: (Boolean) -> Unit,
-    onImageLoadFailed: () -> Unit,
-    onDoubleTap: () -> Unit,
-) = Unit // TODO: iOS WebView 实现
-
 actual fun Modifier.articleMarkdownSelectionWorkaround(): Modifier = this
 
 @Composable
@@ -120,9 +99,6 @@ actual fun rememberHomeAccountState(): HomeAccountState = HomeAccountState(
 actual fun rememberHomeUpdateAnnouncement(): HomeUpdateAnnouncement? = null
 
 @Composable
-actual fun rememberHomeInstalledAtLeastThreeHours(): Boolean = false
-
-@Composable
 actual fun rememberHomeIsDebuggable(): Boolean = false
 
 @Composable
@@ -132,6 +108,15 @@ actual fun rememberHomeLoginRequester(): () -> Unit {
         { userMessages.showMessage("iOS 登录暂未实现") } // TODO: iOS 登录
     }
 }
+
+@Composable
+actual fun rememberHomeFeedStartupCache(recommendationMode: RecommendationMode): HomeFeedStartupCache =
+    remember(recommendationMode) {
+        HomeFeedStartupCache(
+            readHomeFeedStartupCache = { emptyList() }, // TODO: iOS 首页缓存
+            writeHomeFeedStartupCache = { }, // TODO: iOS 首页缓存
+        )
+    }
 
 @Composable
 actual fun rememberAccountSettingsAccountState(): androidx.compose.runtime.State<AccountSettingsAccountState> =
@@ -172,11 +157,6 @@ actual fun rememberMainTabSelector(): (TopLevelDestination) -> Unit = remember {
 }
 
 @Composable
-actual fun ZhihuHtmlWebViewContent(html: String) = Unit // TODO: iOS HTML WebView 实现
-
-actual fun supportsZhihuHtmlWebView(): Boolean = false
-
-@Composable
 actual fun rememberBlocklistRuleImporter(
     userMessages: UserMessageSink,
 ): (((String) -> Unit) -> Unit) = remember(userMessages) {
@@ -198,11 +178,6 @@ internal fun openIosUrl(url: String) {
     val nsUrl = NSURL.URLWithString(url) ?: return
     UIApplication.sharedApplication.openURL(nsUrl)
 }
-
-@Composable
-actual fun QuestionDetailWebViewContent(questionId: Long, html: String) = Unit // TODO: iOS 问题 WebView 实现
-
-actual fun supportsQuestionDetailWebView(): Boolean = false
 
 actual fun Modifier.questionSelectionWorkaround(): Modifier = this
 

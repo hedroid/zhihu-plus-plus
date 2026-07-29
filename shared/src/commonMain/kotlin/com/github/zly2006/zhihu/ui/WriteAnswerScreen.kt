@@ -63,7 +63,6 @@ import com.github.zly2006.zhihu.navigation.ArticleType
 import com.github.zly2006.zhihu.navigation.LocalNavigator
 import com.github.zly2006.zhihu.navigation.WriteAnswer
 import com.github.zly2006.zhihu.shared.platform.rememberPlainTextClipboard
-import com.github.zly2006.zhihu.shared.platform.rememberSettingsStore
 import com.github.zly2006.zhihu.shared.platform.rememberUserMessageSink
 import com.github.zly2006.zhihu.ui.components.MyModalBottomSheet
 import com.github.zly2006.zhihu.ui.components.SettingItemWithSwitch
@@ -90,7 +89,6 @@ fun WriteAnswerScreen(
     val publisher = rememberZhihuAnswerPublisher()
     val coroutineScope = rememberCoroutineScope()
     val copyToClipboard = rememberPlainTextClipboard()
-    val settings = rememberSettingsStore()
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
 
@@ -106,10 +104,7 @@ fun WriteAnswerScreen(
     var showPreviewSheet by remember { mutableStateOf(false) }
     val settingsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val previewSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var isPreviewLoading by remember { mutableStateOf(false) }
-    var previewHtml by remember { mutableStateOf<String?>(null) }
     var previewMarkdown by remember { mutableStateOf<String?>(null) }
-    var previewUseWebView by remember { mutableStateOf(false) }
 
     suspend fun ensureAnswerId(): Long? {
         val cached = existingAnswerId
@@ -121,30 +116,13 @@ fun WriteAnswerScreen(
 
     fun showPreview() {
         if (isSubmitting || content.text.isBlank()) return
-        val useWebView = settings.getBoolean(ARTICLE_USE_WEBVIEW_PREFERENCE_KEY, false)
         val markdownSnapshot = content.text
         coroutineScope.launch {
             focusManager.clearFocus(force = true)
             keyboardController?.hide()
             yield()
-            previewUseWebView = useWebView
             previewMarkdown = markdownSnapshot
-            previewHtml = null
             showPreviewSheet = true
-            if (!useWebView) {
-                isPreviewLoading = false
-                return@launch
-            }
-            isPreviewLoading = true
-            runCatching {
-                compileMdToZhihuHtml(markdown = markdownSnapshot)
-            }.onSuccess { html ->
-                previewHtml = html
-            }.onFailure { e ->
-                errorDialogMessage = buildWriteOperationErrorMessage("生成预览失败", e)
-                showPreviewSheet = false
-            }
-            isPreviewLoading = false
         }
     }
 
@@ -368,13 +346,9 @@ fun WriteAnswerScreen(
     if (showPreviewSheet) {
         WriteContentPreviewSheet(
             sheetState = previewSheetState,
-            useWebView = previewUseWebView,
-            isLoading = isPreviewLoading,
-            html = previewHtml,
             markdown = previewMarkdown,
             onDismissRequest = {
                 showPreviewSheet = false
-                isPreviewLoading = false
             },
         )
     }

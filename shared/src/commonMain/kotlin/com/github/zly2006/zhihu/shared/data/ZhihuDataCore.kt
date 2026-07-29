@@ -17,6 +17,10 @@
 
 package com.github.zly2006.zhihu.shared.data
 
+import com.fleeksoft.ksoup.Ksoup
+import kotlinx.serialization.Serializable
+
+@Serializable
 data class FeedDisplayItem(
     val title: String,
     val summary: String?,
@@ -29,17 +33,9 @@ data class FeedDisplayItem(
     val isFiltered: Boolean = false,
     val content: String? = null,
     var raw: DataHolder.Content? = null,
-    val localContentId: String? = null,
-    val localFeedId: String? = null,
-    val localReason: String? = null,
-    val sourceLabel: String? = null,
-    val segmentInfos: List<SegmentInfoParagraph> = emptyList(),
-    val segmentSourceUrl: String? = null,
 ) {
     val stableKey: String
-        get() = localFeedId
-            ?: localContentId
-            ?: navDestinationJson
+        get() = navDestinationJson
             ?: feed?.target?.stableTargetKey
             ?: "$title|${summary.orEmpty()}|$details"
 }
@@ -59,31 +55,17 @@ fun List<Feed>.flattenFeeds(): List<Feed> = flatMap {
 
 fun Feed.toDisplayItem(
     enableQualityFilter: Boolean = true,
-    reverseBlock: Boolean = false,
 ): FeedDisplayItem = when (this) {
     is CommonFeed, is FeedItemIndexGroup, is MomentsFeed, is HotListFeed -> toTargetDisplayItem(
         enableQualityFilter = enableQualityFilter,
-        reverseBlock = reverseBlock,
     )
 
     is AdvertisementFeed -> FeedDisplayItem(
-        title = if (reverseBlock) {
-            ad.creatives
-                .firstOrNull()
-                ?.title ?: ""
-        } else {
-            ""
-        },
-        summary = if (reverseBlock) {
-            ad.creatives
-                .firstOrNull()
-                ?.description ?: actionText
-        } else {
-            actionText
-        },
+        title = "",
+        summary = actionText,
         details = actionText + "广告",
         feed = this,
-        isFiltered = !reverseBlock,
+        isFiltered = true,
         content = ad.creatives
             .firstOrNull()
             ?.landingUrl,
@@ -103,10 +85,9 @@ fun Feed.toDisplayItem(
 
 private fun Feed.toTargetDisplayItem(
     enableQualityFilter: Boolean,
-    reverseBlock: Boolean,
 ): FeedDisplayItem {
     val target = target
-    val filterReason = if (!enableQualityFilter || reverseBlock) null else target?.filterReason()
+    val filterReason = if (enableQualityFilter) target?.filterReason() else null
 
     if (filterReason != null) {
         return FeedDisplayItem(
@@ -130,27 +111,32 @@ private fun Feed.toTargetDisplayItem(
             authorName = target.author?.name,
             authorBadgeV2 = target.author?.badgeV2,
             feed = this,
-            segmentInfos = when (target) {
-                is Feed.AnswerTarget -> target.segmentInfos
-                is Feed.ArticleTarget -> target.segmentInfos
-                else -> emptyList()
-            },
-            segmentSourceUrl = when (target) {
-                is Feed.AnswerTarget -> "https://www.zhihu.com/question/${target.question.id}/answer/${target.id}"
-                is Feed.ArticleTarget -> "https://zhuanlan.zhihu.com/p/${target.id}"
-                else -> null
-            },
         )
 
-        is Feed.PinTarget -> FeedDisplayItem(
-            title = target.author.name + "的想法",
-            summary = target.excerpt,
-            details = target.detailsText,
-            avatarSrc = target.author.avatarUrl,
-            authorName = target.author.name,
-            authorBadgeV2 = target.author.badgeV2,
-            feed = this,
-        )
+        is Feed.PinTarget -> {
+            val textContent = target.content
+                .filterIsInstance<DataHolder.Pin.ContentText>()
+                .firstOrNull()
+            val title = textContent?.title.orEmpty()
+            val contentSummary = textContent
+                ?.content
+                ?.let { Ksoup.parse(it).text() }
+                ?.takeIf { it.isNotBlank() }
+            val excerptSummary = target.excerpt
+                ?.let { Ksoup.parse(it).text() }
+                ?.takeIf { it.isNotBlank() }
+            val summary = (contentSummary ?: excerptSummary)?.takeUnless { it == title }
+
+            FeedDisplayItem(
+                title = title,
+                summary = summary,
+                details = target.detailsText,
+                avatarSrc = target.author.avatarUrl,
+                authorName = target.author.name,
+                authorBadgeV2 = target.author.badgeV2,
+                feed = this,
+            )
+        }
 
         else -> FeedDisplayItem(
             title = target?.description() ?: "广告",

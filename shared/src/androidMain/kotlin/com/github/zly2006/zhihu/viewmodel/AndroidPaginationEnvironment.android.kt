@@ -60,13 +60,12 @@ import com.github.zly2006.zhihu.util.exportCollectionItemsToZip
 import com.github.zly2006.zhihu.util.saveBitmapToGallery
 import com.github.zly2006.zhihu.viewmodel.filter.AndroidContentFilterRuntime
 import com.github.zly2006.zhihu.viewmodel.filter.BlockedKeywordService
+import com.github.zly2006.zhihu.viewmodel.filter.BlockedQuestionAuthor
 import com.github.zly2006.zhihu.viewmodel.filter.BlockedUser
-import com.github.zly2006.zhihu.viewmodel.filter.ContentFilterDatabase
 import com.github.zly2006.zhihu.viewmodel.filter.ContentFilterManager
 import com.github.zly2006.zhihu.viewmodel.filter.ContentType
 import com.github.zly2006.zhihu.viewmodel.filter.FeedContentFilterPipeline
 import com.github.zly2006.zhihu.viewmodel.filter.FeedDisplayFilterPipeline
-import com.github.zly2006.zhihu.viewmodel.filter.FeedFilterSettings
 import com.github.zly2006.zhihu.viewmodel.filter.ForegroundReadFilterPipeline
 import com.github.zly2006.zhihu.viewmodel.filter.contentFilterSettings
 import com.github.zly2006.zhihu.viewmodel.filter.getContentFilterDatabase
@@ -185,8 +184,6 @@ open class SharedAndroidPaginationEnvironment(
 
     override fun feedDisplaySettings(): FeedDisplaySettings = FeedDisplaySettings(
         enableQualityFilter = settingsStore.getBoolean("enableQualityFilter", true),
-        reverseBlock = settingsStore.getBoolean("reverseBlock", false),
-        showBlockedContent = settingsStore.getBoolean("showBlockedFeedContent", false),
     )
 
     override fun localHistory(): List<NavDestination> = HistoryStorage(context).history
@@ -198,6 +195,11 @@ open class SharedAndroidPaginationEnvironment(
     override suspend fun isUserBlocked(userId: String): Boolean =
         getContentFilterDatabase(context).let { database ->
             database.blockedUserDao().isUserBlocked(userId)
+        }
+
+    override suspend fun isQuestionAuthorBlocked(userId: String): Boolean =
+        getContentFilterDatabase(context).let { database ->
+            database.blockedQuestionAuthorDao().isUserBlocked(userId)
         }
 
     override fun blockedUserIds(): Set<String> =
@@ -227,9 +229,31 @@ open class SharedAndroidPaginationEnvironment(
         )
     }
 
+    override suspend fun addBlockedQuestionAuthor(
+        userId: String,
+        userName: String,
+        urlToken: String?,
+        avatarUrl: String?,
+    ) {
+        val database = getContentFilterDatabase(context)
+        database.blockedQuestionAuthorDao().insertUser(
+            BlockedQuestionAuthor(
+                userId = userId,
+                userName = userName,
+                urlToken = urlToken,
+                avatarUrl = avatarUrl,
+            ),
+        )
+    }
+
     override suspend fun removeBlockedUser(userId: String) {
         val database = getContentFilterDatabase(context)
         database.blockedUserDao().deleteUserById(userId)
+    }
+
+    override suspend fun removeBlockedQuestionAuthor(userId: String) {
+        val database = getContentFilterDatabase(context)
+        database.blockedQuestionAuthorDao().deleteUserById(userId)
     }
 
     override suspend fun recordContentOpenEvent(
@@ -264,63 +288,41 @@ open class SharedAndroidPaginationEnvironment(
             contentFilterManager = ContentFilterManager(filterDatabase.contentFilterDao()),
             blockedFeedRecordDao = filterDatabase.blockedFeedRecordDao(),
         ).filter(items)
-        val filteredItems = createContentFilterPipeline(
+        val filteredItems = FeedDisplayFilterPipeline(
             settings = filterSettings,
-            filterDatabase = filterDatabase,
-            showBlockedContent = settings.showBlockedContent,
+            contentDetailProvider = this::getOrFetchContentDetail,
+            contentFilterPipeline = FeedContentFilterPipeline(
+                settings = filterSettings,
+                blockedKeywordDao = filterDatabase.blockedKeywordDao(),
+                blockedUserDao = filterDatabase.blockedUserDao(),
+                blockedQuestionAuthorDao = filterDatabase.blockedQuestionAuthorDao(),
+                blockedTopicDao = filterDatabase.blockedTopicDao(),
+                blockedKeywordService = BlockedKeywordService(
+                    keywordDao = filterDatabase.blockedKeywordDao(),
+                    recordDao = filterDatabase.blockedContentRecordDao(),
+                    semanticMatcher = AndroidContentFilterRuntime.semanticMatcher,
+                ),
+                onNlpBlocked = { blockedThisRound ->
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        context.mainExecutor.execute {
+                            userMessageSink.showShortMessage("NLP 已屏蔽 ${blockedThisRound.first().title.take(10)}... 等 ${blockedThisRound.size} 条内容")
+                        }
+                    }
+                },
+            ),
+            blockedFeedRecordDao = filterDatabase.blockedFeedRecordDao(),
+            onDetailFetchFailed = { item ->
+                Log.w("ContentFilterExtensions", "Failed to fetch content details for item '${item.title}'. Using dummy content for filtering.")
+            },
+            onDetailsKeywordFiltered = { item, keyword ->
+                Log.e("ContentFilterExtensions", "Filtered item '${item.title}' due to keyword '$keyword' in details: ${item.content}")
+            },
         ).filter(foregroundItems)
         return HomeFeedFilterResult(
-            foregroundItems = foregroundItems.visibleBlockedItems(settings.showBlockedContent),
+            foregroundItems = foregroundItems,
             filteredItems = filteredItems,
-            reverseBlock = settings.reverseBlock,
-            showBlockedContent = settings.showBlockedContent,
         )
     }
-
-    override suspend fun applyFeedContentFilters(items: List<FeedDisplayItem>): List<FeedDisplayItem> {
-        val settings = context.contentFilterSettings()
-        val filterDatabase = getContentFilterDatabase(context)
-        return createContentFilterPipeline(
-            settings = settings,
-            filterDatabase = filterDatabase,
-            showBlockedContent = settingsStore.getBoolean("showBlockedFeedContent", false),
-        ).filter(items)
-    }
-
-    private fun createContentFilterPipeline(
-        settings: FeedFilterSettings,
-        filterDatabase: ContentFilterDatabase,
-        showBlockedContent: Boolean,
-    ): FeedDisplayFilterPipeline = FeedDisplayFilterPipeline(
-        settings = settings,
-        showBlockedContent = showBlockedContent,
-        contentDetailProvider = this::getOrFetchContentDetail,
-        contentFilterPipeline = FeedContentFilterPipeline(
-            settings = settings,
-            blockedKeywordDao = filterDatabase.blockedKeywordDao(),
-            blockedUserDao = filterDatabase.blockedUserDao(),
-            blockedTopicDao = filterDatabase.blockedTopicDao(),
-            blockedKeywordService = BlockedKeywordService(
-                keywordDao = filterDatabase.blockedKeywordDao(),
-                recordDao = filterDatabase.blockedContentRecordDao(),
-                semanticMatcher = AndroidContentFilterRuntime.semanticMatcher,
-            ),
-            onNlpBlocked = { blockedThisRound ->
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                    context.mainExecutor.execute {
-                        userMessageSink.showShortMessage("NLP 已屏蔽 ${blockedThisRound.first().title.take(10)}... 等 ${blockedThisRound.size} 条内容")
-                    }
-                }
-            },
-        ),
-        blockedFeedRecordDao = filterDatabase.blockedFeedRecordDao(),
-        onDetailFetchFailed = { item ->
-            Log.w("ContentFilterExtensions", "Failed to fetch content details for item '${item.title}'. Using dummy content for filtering.")
-        },
-        onDetailsKeywordFiltered = { item, keyword ->
-            Log.e("ContentFilterExtensions", "Filtered item '${item.title}' due to keyword '$keyword' in details: ${item.content}")
-        },
-    )
 
     override suspend fun recordContentInteraction(feed: Feed) {
         val settings = context.contentFilterSettings()

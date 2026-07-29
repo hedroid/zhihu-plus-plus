@@ -24,7 +24,6 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -44,15 +43,14 @@ import com.github.zly2006.zhihu.data.AccountData
 import com.github.zly2006.zhihu.data.asApiEnvironment
 import com.github.zly2006.zhihu.navigation.Article
 import com.github.zly2006.zhihu.navigation.TopLevelDestination
+import com.github.zly2006.zhihu.shared.data.FeedDisplayItem
+import com.github.zly2006.zhihu.shared.data.RecommendationMode
 import com.github.zly2006.zhihu.shared.data.ZHIHU_ME_URL
 import com.github.zly2006.zhihu.shared.data.ZhihuJson
 import com.github.zly2006.zhihu.shared.notification.NotificationSettingsStore
 import com.github.zly2006.zhihu.shared.platform.UserMessageSink
 import com.github.zly2006.zhihu.shared.platform.rememberUserMessageSink
 import com.github.zly2006.zhihu.shared.util.Log
-import com.github.zly2006.zhihu.ui.components.CustomWebView
-import com.github.zly2006.zhihu.ui.components.WebviewComp
-import com.github.zly2006.zhihu.ui.components.setupUpWebviewClient
 import com.github.zly2006.zhihu.updater.UpdateManager
 import com.github.zly2006.zhihu.util.EmojiManager
 import com.github.zly2006.zhihu.util.OpenInBrowser
@@ -65,10 +63,8 @@ import com.github.zly2006.zhihu.viewmodel.filter.importBlocklistBackupFromJsonTe
 import com.github.zly2006.zhihu.viewmodel.notificationEnvironment
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.jsoup.Jsoup
 import java.io.File
 
 private const val LOGIN_ACTIVITY_CLASS = "com.github.zly2006.zhihu.LoginActivity"
@@ -134,7 +130,12 @@ actual fun rememberAccountQrLoginRequester(): () -> Unit {
 actual fun rememberAccountLogoutAction(): () -> Unit {
     val context = LocalContext.current
     return remember(context) {
-        { AccountData.delete(context) }
+        {
+            homeFeedStartupCacheFileNames().forEach { fileName ->
+                File(context.filesDir, fileName).delete()
+            }
+            AccountData.delete(context)
+        }
     }
 }
 
@@ -155,6 +156,7 @@ fun AccountData.Data.toAccountSettingsAccountState(): AccountSettingsAccountStat
     avatarUrl = self?.avatarUrl,
     id = self?.id ?: "",
     urlToken = self?.urlToken,
+    identityManagementSupported = true,
 )
 
 private fun Context.zhihuVersionInfo(): String {
@@ -246,71 +248,6 @@ actual fun rememberArticleBrowserOpener(): (Article) -> Unit {
 @Composable
 actual fun rememberArticleHost(): ArticleHost? = LocalContext.current.articleHost()
 
-@Composable
-actual fun ArticlePreviewPreloadEffect(
-    cached: com.github.zly2006.zhihu.viewmodel.ArticleViewModel.CachedAnswerContent?,
-    isNext: Boolean,
-    title: String,
-    onImageLoadFailed: () -> Unit,
-) {
-    val context = LocalContext.current
-    val articleHost = context.articleHost()
-    LaunchedEffect(cached?.article?.id, isNext, title, articleHost) {
-        cached ?: return@LaunchedEffect
-        val previewWebViewStore = articleHost?.articleAnswerSwitchState as? ArticlePreviewWebViewStore
-            ?: return@LaunchedEffect
-        val wv = previewWebViewStore.getOrCreatePreviewWebView(context, isNext, cached.article.id)
-        val articleId = cached.article.id.toString()
-        if (wv.contentId != articleId) {
-            wv.contentId = articleId
-            wv.loadZhihu(
-                "https://www.zhihu.com/answer/${cached.article.id}",
-                prepareContentDocument(cached.content, onImageLoadFailed),
-                title,
-            )
-        }
-    }
-}
-
-@Composable
-actual fun ArticleWebViewContent(
-    article: Article,
-    html: String,
-    title: String,
-    scrollState: ScrollState,
-    rememberedScrollY: Int,
-    rememberedScrollYSync: Boolean,
-    onRememberedScrollYSyncChange: (Boolean) -> Unit,
-    onImageLoadFailed: () -> Unit,
-    onDoubleTap: () -> Unit,
-) {
-    val coroutineScope = rememberCoroutineScope()
-    WebviewComp(
-        onDoubleTap = onDoubleTap,
-        scrollState = scrollState,
-    ) {
-        it.isVerticalScrollBarEnabled = false
-        it.setupUpWebviewClient {
-            if (!rememberedScrollYSync) {
-                coroutineScope.launch {
-                    while (scrollState.maxValue < rememberedScrollY) {
-                        delay(100)
-                    }
-                    Log.i("zhihu-scroll", "scroll to $rememberedScrollY, max= ${scrollState.maxValue}, sync on")
-                    scrollState.animateScrollTo(rememberedScrollY)
-                    onRememberedScrollYSyncChange(true)
-                }
-            }
-        }
-        it.contentId = article.id.toString()
-        it.loadZhihu(
-            "https://www.zhihu.com/${article.type}/${article.id}",
-            prepareContentDocument(html, onImageLoadFailed),
-            title,
-        )
-    }
-}
-
 actual fun Modifier.articleMarkdownSelectionWorkaround(): Modifier = fuckHonorService()
 
 @Composable
@@ -328,22 +265,8 @@ actual fun rememberHomeUpdateAnnouncement(): HomeUpdateAnnouncement? {
     return (updateState as? UpdateManager.UpdateState.UpdateAvailable)?.let {
         HomeUpdateAnnouncement(
             version = it.version.toString(),
-            isNightly = it.isNightly,
         )
     }
-}
-
-@Composable
-actual fun rememberHomeInstalledAtLeastThreeHours(): Boolean {
-    val context = LocalContext.current
-    val installTime = remember {
-        try {
-            context.packageManager.getPackageInfo(context.packageName, 0).firstInstallTime
-        } catch (_: Exception) {
-            System.currentTimeMillis()
-        }
-    }
-    return System.currentTimeMillis() - installTime >= 3 * 60 * 60 * 1000L
 }
 
 @Composable
@@ -360,6 +283,37 @@ actual fun rememberHomeLoginRequester(): () -> Unit {
             val intent = Intent().setClassName(context.packageName, "com.github.zly2006.zhihu.LoginActivity")
             context.startActivity(intent)
         }
+    }
+}
+
+@Composable
+actual fun rememberHomeFeedStartupCache(recommendationMode: RecommendationMode): HomeFeedStartupCache {
+    val context = LocalContext.current
+    val startupCacheFile = remember(context, recommendationMode) {
+        File(context.filesDir, homeFeedStartupCacheFileName(recommendationMode))
+    }
+    return remember(startupCacheFile) {
+        HomeFeedStartupCache(
+            readHomeFeedStartupCache = {
+                withContext(Dispatchers.IO) {
+                    if (startupCacheFile.exists()) {
+                        decodeHomeFeedStartupSnapshot(startupCacheFile.readText())
+                    } else {
+                        emptyList()
+                    }
+                }
+            },
+            writeHomeFeedStartupCache = { items: List<FeedDisplayItem> ->
+                withContext(Dispatchers.IO) {
+                    val serialized = encodeHomeFeedStartupSnapshot(items)
+                    if (serialized != null) {
+                        runCatching {
+                            startupCacheFile.writeText(serialized)
+                        }
+                    }
+                }
+            },
+        )
     }
 }
 
@@ -386,6 +340,7 @@ actual fun rememberBlocklistRuleImporter(
                         importBlocklistBackupFromJsonText(
                             keywordDao = database.blockedKeywordDao(),
                             userDao = database.blockedUserDao(),
+                            questionAuthorDao = database.blockedQuestionAuthorDao(),
                             topicDao = database.blockedTopicDao(),
                             text = text,
                         )
@@ -419,6 +374,7 @@ actual fun rememberBlocklistRuleExporter(): suspend () -> String {
                     encodeBlocklistBackup(
                         keywordDao = database.blockedKeywordDao(),
                         userDao = database.blockedUserDao(),
+                        questionAuthorDao = database.blockedQuestionAuthorDao(),
                         topicDao = database.blockedTopicDao(),
                     ),
                 )
@@ -441,20 +397,6 @@ actual fun rememberBlocklistRuleExporter(): suspend () -> String {
         }
     }
 }
-
-@Composable
-actual fun ZhihuHtmlWebViewContent(html: String) {
-    WebviewComp {
-        it.isVerticalScrollBarEnabled = false
-        it.setupUpWebviewClient()
-        it.loadZhihu(
-            "https://www.zhihu.com",
-            Jsoup.parse(html),
-        )
-    }
-}
-
-actual fun supportsZhihuHtmlWebView(): Boolean = true
 
 @Composable
 actual fun rememberCommentEmojiInlineContent(emojiKeys: Set<String>): Map<String, InlineTextContent> =
@@ -485,31 +427,8 @@ actual fun rememberNotificationShowDebugCopy(): Boolean {
     return (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
 }
 
-interface ArticlePreviewWebViewStore {
-    fun getOrCreatePreviewWebView(
-        context: Context,
-        isNext: Boolean,
-        answerId: Long,
-    ): CustomWebView
-}
-
 fun Context.articleHost(): ArticleHost? =
     (this as? ArticleHost) ?: (this as? ContextWrapper)?.baseContext?.takeIf { it !== this }?.articleHost()
-
-@Composable
-actual fun QuestionDetailWebViewContent(
-    questionId: Long,
-    html: String,
-) {
-    WebviewComp {
-        it.loadZhihu(
-            "https://www.zhihu.com/question/$questionId",
-            Jsoup.parse(html),
-        )
-    }
-}
-
-actual fun supportsQuestionDetailWebView(): Boolean = true
 
 @Composable
 actual fun rememberZhihuHttpClient(): HttpClient = AccountData.httpClient(LocalContext.current)

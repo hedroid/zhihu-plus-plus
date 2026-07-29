@@ -69,6 +69,7 @@ import com.github.zly2006.zhihu.shared.filter.rememberContentFilterMaintenance
 import com.github.zly2006.zhihu.shared.platform.rememberSettingsStore
 import com.github.zly2006.zhihu.shared.platform.rememberUserMessageSink
 import com.github.zly2006.zhihu.shared.util.Log
+import com.github.zly2006.zhihu.ui.AUTO_REFRESH_HOME_ON_STARTUP_PREFERENCE_KEY
 import com.github.zly2006.zhihu.ui.components.SettingItem
 import com.github.zly2006.zhihu.ui.components.SettingItemGroup
 import com.github.zly2006.zhihu.ui.components.SettingItemWithSwitch
@@ -209,6 +210,22 @@ fun ContentFilterSettingsScreen(
                     settingKey = "loginForRecommendation",
                     highlightedKey = highlightedSetting,
                 )
+
+                val autoRefreshHomeOnStartup = remember {
+                    mutableStateOf(settings.getBoolean(AUTO_REFRESH_HOME_ON_STARTUP_PREFERENCE_KEY, true))
+                }
+                SettingItemWithSwitch(
+                    modifier = Modifier.testTag("contentFilterSettings:autoRefreshHomeOnStartup"),
+                    title = { Text("启动时自动刷新首页") },
+                    description = { Text("关闭后优先显示上次获取的一批首页推荐；没有缓存时仍会加载新推荐") },
+                    checked = autoRefreshHomeOnStartup.value,
+                    onCheckedChange = { checked ->
+                        autoRefreshHomeOnStartup.value = checked
+                        settings.putBoolean(AUTO_REFRESH_HOME_ON_STARTUP_PREFERENCE_KEY, checked)
+                    },
+                    settingKey = AUTO_REFRESH_HOME_ON_STARTUP_PREFERENCE_KEY,
+                    highlightedKey = highlightedSetting,
+                )
             }
 
             val enableContentFilter = remember { mutableStateOf(settings.getBoolean("enableContentFilter", true)) }
@@ -253,21 +270,6 @@ fun ContentFilterSettingsScreen(
                     settingKey = "filterFollowedUserContent",
                     highlightedKey = highlightedSetting,
                 )
-
-                val showBlockedFeedContent = remember { mutableStateOf(settings.getBoolean("showBlockedFeedContent", false)) }
-                SettingItemWithSwitch(
-                    modifier = Modifier.testTag("contentFilterSettings:showBlockedFeedContent"),
-                    title = { Text("显示已屏蔽卡片") },
-                    description = { Text("开启后保留“已屏蔽”提示卡，关闭后直接移除被过滤内容") },
-                    checked = showBlockedFeedContent.value,
-                    onCheckedChange = {
-                        showBlockedFeedContent.value = it
-                        settings.putBoolean("showBlockedFeedContent", it)
-                    },
-                    enabled = enableContentFilter.value,
-                    settingKey = "showBlockedFeedContent",
-                    highlightedKey = highlightedSetting,
-                )
             }
 
             SettingItemGroup {
@@ -287,7 +289,7 @@ fun ContentFilterSettingsScreen(
                 val enableUserBlocking = remember { mutableStateOf(settings.getBoolean("enableUserBlocking", true)) }
                 SettingItemWithSwitch(
                     title = { Text("启用用户屏蔽") },
-                    description = { Text("屏蔽特定用户发布的内容") },
+                    description = { Text("屏蔽特定用户发布的内容，或由特定用户提出的问题") },
                     checked = enableUserBlocking.value,
                     onCheckedChange = {
                         enableUserBlocking.value = it
@@ -425,19 +427,6 @@ fun ContentFilterSettingsScreen(
                         settings.putBoolean("blockPaidContent", it)
                     },
                     settingKey = "blockPaidContent",
-                    highlightedKey = highlightedSetting,
-                )
-
-                val reverseBlock = remember { mutableStateOf(settings.getBoolean("reverseBlock", false)) }
-                SettingItemWithSwitch(
-                    title = { Text("反向屏蔽（吃\uD83D\uDCA9模式）") },
-                    description = { Text("开启后，首页将只保留广告和付费内容，屏蔽其余所有内容") },
-                    checked = reverseBlock.value,
-                    onCheckedChange = {
-                        reverseBlock.value = it
-                        settings.putBoolean("reverseBlock", it)
-                    },
-                    settingKey = "reverseBlock",
                     highlightedKey = highlightedSetting,
                 )
             }

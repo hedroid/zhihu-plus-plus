@@ -63,7 +63,6 @@ object UpdateManager {
 
         data class UpdateAvailable(
             val version: SchematicVersion,
-            val isNightly: Boolean = false,
             val releaseNotes: String?,
             val downloadUrl: String,
             val cnDownloadUrl: String?,
@@ -155,7 +154,6 @@ object UpdateManager {
                 if (skippedVersion != versionString) {
                     updateState.value = UpdateState.UpdateAvailable(
                         latestVersion,
-                        false,
                         latestResponse.body?.let(::extractGithubReleaseNotes),
                         latestDownloadInfo.browserDownloadUrl,
                         latestDownloadInfo.cnDownloadUrl,
@@ -190,7 +188,6 @@ object UpdateManager {
             if (latestVersion != null && latestVersion.isUpdateFor(currentVersion)) {
                 updateState.value = UpdateState.UpdateAvailable(
                     latestVersion,
-                    false,
                     releaseNotes,
                     downloadInfo.browserDownloadUrl,
                     downloadInfo.cnDownloadUrl,

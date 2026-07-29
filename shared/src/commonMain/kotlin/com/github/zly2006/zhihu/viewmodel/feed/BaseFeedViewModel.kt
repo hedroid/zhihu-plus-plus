@@ -28,29 +28,20 @@ import com.github.zly2006.zhihu.viewmodel.FeedDisplayEnvironment
 import com.github.zly2006.zhihu.viewmodel.HomeFeedFilterResult
 import com.github.zly2006.zhihu.viewmodel.PaginationEnvironment
 import com.github.zly2006.zhihu.viewmodel.PaginationViewModel
-import com.github.zly2006.zhihu.viewmodel.visibleBlockedItems
 import kotlinx.serialization.json.JsonArray
 import kotlin.reflect.typeOf
 
 abstract class BaseFeedViewModel : PaginationViewModel<Feed>(typeOf<Feed>()) {
     var displayItems = mutableStateListOf<FeedDisplayItem>()
+    internal var latestLoadedDisplayItems = mutableStateOf<List<FeedDisplayItem>>(emptyList())
     var isPullToRefresh by mutableStateOf(false)
         protected set
 
     override fun processResponse(environment: PaginationEnvironment, data: List<Feed>, rawData: JsonArray) {
         super.processResponse(environment, data, rawData)
-        addDisplayItems(data.flattenFeeds().map { createDisplayItem(environment, it) })
-    }
-
-    protected suspend fun processResponseWithContentFilters(
-        environment: PaginationEnvironment,
-        data: List<Feed>,
-        rawData: JsonArray,
-    ) {
-        super.processResponse(environment, data, rawData)
-        val items = data.flattenFeeds().map { createDisplayItem(environment, it) }
-        val filteredItems = environment.applyFeedContentFilters(items)
-        addDisplayItems(filteredItems.visibleBlockedItems(environment.feedDisplaySettings().showBlockedContent))
+        val loadedItems = data.flattenFeeds().map { createDisplayItem(environment, it) }
+        addDisplayItems(loadedItems)
+        latestLoadedDisplayItems.value = loadedItems
     }
 
     override fun refresh(environment: PaginationEnvironment) {
@@ -80,7 +71,6 @@ abstract class BaseFeedViewModel : PaginationViewModel<Feed>(typeOf<Feed>()) {
         val settings = environment.feedDisplaySettings()
         return feed.toDisplayItem(
             enableQualityFilter = settings.enableQualityFilter,
-            reverseBlock = settings.reverseBlock,
         )
     }
 
@@ -128,14 +118,11 @@ abstract class BaseFeedViewModel : PaginationViewModel<Feed>(typeOf<Feed>()) {
  * Only items from [HomeFeedFilterResult.foregroundItems] are touched, so older or unrelated cards in the
  * list keep their current state. A foreground item is removed when it is absent from
  * [HomeFeedFilterResult.filteredItems], and replaced when the final filter pipeline returns a matching item
- * with the same [FeedDisplayItem.stableKey]. When blocked content display is enabled, delayed
- * quality/content filters can swap an already rendered card with an `已屏蔽` placeholder while preserving
- * existing raw content if the replacement has not loaded one. Reverse-block mode is intentionally ignored
- * because it renders filtered items directly.
+ * with the same [FeedDisplayItem.stableKey]. This lets delayed quality/content filters swap an already
+ * rendered card with an `已屏蔽` placeholder while preserving existing raw content if the replacement has not
+ * loaded one.
  */
 internal fun MutableList<FeedDisplayItem>.replaceHomeFeedItemsWithFilteredResult(filterResult: HomeFeedFilterResult) {
-    if (filterResult.reverseBlock) return
-
     val foregroundKeys = filterResult.foregroundItems.map { it.stableKey }.toSet()
     val filteredItemsByKey = filterResult.filteredItems.associateBy { it.stableKey }
     var index = 0
@@ -147,7 +134,7 @@ internal fun MutableList<FeedDisplayItem>.replaceHomeFeedItemsWithFilteredResult
         }
 
         val filteredVersion = filteredItemsByKey[item.stableKey]
-        if (filteredVersion == null || (filteredVersion.isFiltered && !filterResult.showBlockedContent)) {
+        if (filteredVersion == null) {
             removeAt(index)
         } else {
             this[index] = filteredVersion.copy(raw = filteredVersion.raw ?: item.raw)

@@ -34,6 +34,7 @@ import com.github.zly2006.zhihu.navigation.Account
 import com.github.zly2006.zhihu.shared.data.RecommendationMode
 import com.github.zly2006.zhihu.test.resetAppPreferences
 import com.github.zly2006.zhihu.test.setScreenContent
+import com.github.zly2006.zhihu.ui.AUTO_REFRESH_HOME_ON_STARTUP_PREFERENCE_KEY
 import com.github.zly2006.zhihu.ui.PREFERENCE_NAME
 import com.github.zly2006.zhihu.ui.subscreens.ContentFilterSettingsScreen
 import org.junit.Assert.assertEquals
@@ -62,6 +63,7 @@ class ContentFilterSettingsScreenInstrumentedTest {
             .onNodeWithTag(RECOMMENDATION_MODE_FIELD_TAG, useUnmergedTree = true)
             .assertTextContains(RecommendationMode.MIXED.displayName)
         assertEquals(true, preferences().getBoolean("loginForRecommendation", true))
+        assertEquals(true, preferences().getBoolean(AUTO_REFRESH_HOME_ON_STARTUP_PREFERENCE_KEY, true))
         assertEquals(false, preferences().getBoolean("filterFollowedUserContent", false))
 
         composeRule.onNodeWithTag(RECOMMENDATION_MODE_FIELD_TAG, useUnmergedTree = true).performClick()
@@ -70,6 +72,9 @@ class ContentFilterSettingsScreenInstrumentedTest {
 
         composeRule.onNodeWithTag(LOGIN_FOR_RECOMMENDATION_TAG).performClick()
         assertEquals(false, preferences().getBoolean("loginForRecommendation", true))
+
+        composeRule.onNodeWithTag(AUTO_REFRESH_HOME_ON_STARTUP_TAG).performClick()
+        assertEquals(false, preferences().getBoolean(AUTO_REFRESH_HOME_ON_STARTUP_PREFERENCE_KEY, true))
 
         composeRule.onNodeWithTag(ENABLE_CONTENT_FILTER_TAG).performClick()
         assertEquals(false, preferences().getBoolean("enableContentFilter", true))
@@ -82,9 +87,6 @@ class ContentFilterSettingsScreenInstrumentedTest {
         composeRule.onNodeWithTag(FILTER_FOLLOWED_USER_CONTENT_TAG).performClick()
         assertEquals(true, preferences().getBoolean("filterFollowedUserContent", false))
 
-        composeRule.onNodeWithTag(SHOW_BLOCKED_FEED_CONTENT_TAG).performClick()
-        assertEquals(true, preferences().getBoolean("showBlockedFeedContent", false))
-
         composeRule.setScreenContent {
             ContentFilterSettingsScreen()
         }
@@ -93,9 +95,9 @@ class ContentFilterSettingsScreenInstrumentedTest {
             .onNodeWithTag(RECOMMENDATION_MODE_FIELD_TAG, useUnmergedTree = true)
             .assertTextContains(RecommendationMode.LOCAL.displayName)
         assertEquals(false, preferences().getBoolean("loginForRecommendation", true))
+        assertEquals(false, preferences().getBoolean(AUTO_REFRESH_HOME_ON_STARTUP_PREFERENCE_KEY, true))
         assertEquals(true, preferences().getBoolean("enableContentFilter", false))
         assertEquals(true, preferences().getBoolean("filterFollowedUserContent", false))
-        assertEquals(true, preferences().getBoolean("showBlockedFeedContent", false))
     }
 
     @Test
@@ -143,9 +145,9 @@ class ContentFilterSettingsScreenInstrumentedTest {
         const val SCROLL_TAG = "contentFilterSettings:scroll"
         const val RECOMMENDATION_MODE_FIELD_TAG = "contentFilterSettings:recommendationModeField"
         const val LOGIN_FOR_RECOMMENDATION_TAG = "contentFilterSettings:loginForRecommendation"
+        const val AUTO_REFRESH_HOME_ON_STARTUP_TAG = "contentFilterSettings:autoRefreshHomeOnStartup"
         const val ENABLE_CONTENT_FILTER_TAG = "contentFilterSettings:enableContentFilter"
         const val FILTER_FOLLOWED_USER_CONTENT_TAG = "contentFilterSettings:filterFollowedUserContent"
-        const val SHOW_BLOCKED_FEED_CONTENT_TAG = "contentFilterSettings:showBlockedFeedContent"
         const val BLOCKLIST_TAG = "contentFilterSettings:blocklist"
         const val BLOCKED_FEED_HISTORY_TAG = "contentFilterSettings:blockedFeedHistory"
     }

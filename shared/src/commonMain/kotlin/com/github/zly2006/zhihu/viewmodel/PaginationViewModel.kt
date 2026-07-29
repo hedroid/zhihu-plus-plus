@@ -337,14 +337,10 @@ interface MobileHomeFeedEnvironment : ZhihuApiEnvironment {
 interface FeedDisplayEnvironment {
     fun feedDisplaySettings(): FeedDisplaySettings = FeedDisplaySettings()
 
-    suspend fun applyFeedContentFilters(items: List<FeedDisplayItem>): List<FeedDisplayItem> = items
-
     suspend fun applyHomeFeedFilters(items: List<FeedDisplayItem>): HomeFeedFilterResult =
         HomeFeedFilterResult(
             foregroundItems = items,
             filteredItems = items,
-            reverseBlock = feedDisplaySettings().reverseBlock,
-            showBlockedContent = feedDisplaySettings().showBlockedContent,
         )
 }
 
@@ -376,9 +372,18 @@ interface ContentOpenEnvironment {
 interface ContentBlocklistEnvironment {
     suspend fun isUserBlocked(userId: String): Boolean = false
 
+    suspend fun isQuestionAuthorBlocked(userId: String): Boolean = false
+
     fun blockedUserIds(): Set<String> = emptySet()
 
     suspend fun addBlockedUser(
+        userId: String,
+        userName: String,
+        urlToken: String? = null,
+        avatarUrl: String? = null,
+    ) = Unit
+
+    suspend fun addBlockedQuestionAuthor(
         userId: String,
         userName: String,
         urlToken: String? = null,
@@ -391,6 +396,8 @@ interface ContentBlocklistEnvironment {
     ) = Unit
 
     suspend fun removeBlockedUser(userId: String) = Unit
+
+    suspend fun removeBlockedQuestionAuthor(userId: String) = Unit
 }
 
 interface LocalRecommendationEnvironment : ZhihuApiEnvironment {
@@ -479,19 +486,12 @@ interface PaginationEnvironment :
 
 data class FeedDisplaySettings(
     val enableQualityFilter: Boolean = true,
-    val reverseBlock: Boolean = false,
-    val showBlockedContent: Boolean = false,
 )
 
 data class HomeFeedFilterResult(
     val foregroundItems: List<FeedDisplayItem>,
     val filteredItems: List<FeedDisplayItem>,
-    val reverseBlock: Boolean,
-    val showBlockedContent: Boolean,
 )
-
-internal fun List<FeedDisplayItem>.visibleBlockedItems(showBlockedContent: Boolean): List<FeedDisplayItem> =
-    if (showBlockedContent) this else filterNot { it.isFiltered }
 
 @Composable
 expect fun rememberPaginationEnvironment(allowGuestAccess: Boolean): PaginationEnvironment

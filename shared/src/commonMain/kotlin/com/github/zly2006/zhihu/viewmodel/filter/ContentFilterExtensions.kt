@@ -21,11 +21,10 @@ import com.fleeksoft.ksoup.Ksoup
 import com.github.zly2006.zhihu.navigation.Article
 import com.github.zly2006.zhihu.navigation.NavDestination
 import com.github.zly2006.zhihu.navigation.Pin
-import com.github.zly2006.zhihu.shared.data.AdvertisementFeed
 import com.github.zly2006.zhihu.shared.data.DataHolder
-import com.github.zly2006.zhihu.shared.data.Feed
 import com.github.zly2006.zhihu.shared.data.FeedDisplayItem
 import com.github.zly2006.zhihu.shared.data.navDestination
+import com.github.zly2006.zhihu.shared.data.questionAuthor
 import com.github.zly2006.zhihu.shared.data.target
 import com.github.zly2006.zhihu.shared.filter.ContentOpenEventSupport
 import com.github.zly2006.zhihu.shared.platform.SettingsStore
@@ -37,7 +36,7 @@ class ForegroundReadFilterPipeline(
     private val blockedFeedRecordDao: BlockedFeedRecordDao,
 ) {
     suspend fun filter(items: List<FeedDisplayItem>): List<FeedDisplayItem> {
-        if (settings.reverseBlock || !settings.enableContentFilter) {
+        if (!settings.enableContentFilter) {
             return items
         }
 
@@ -89,6 +88,7 @@ class FeedContentFilterPipeline(
     private val settings: FeedFilterSettings,
     private val blockedKeywordDao: BlockedKeywordDao,
     private val blockedUserDao: BlockedUserDao,
+    private val blockedQuestionAuthorDao: BlockedQuestionAuthorDao,
     private val blockedTopicDao: BlockedTopicDao,
     private val blockedKeywordService: BlockedKeywordService,
     private val htmlToText: (String) -> String = { html -> Ksoup.parse(html).text() },
@@ -99,10 +99,18 @@ class FeedContentFilterPipeline(
         var filteredContents = contents
 
         if (settings.enableUserBlocking) {
-            val (kept, removed) = filteredContents.partition { content ->
-                content.authorId.isNullOrBlank() || !blockedUserDao.isUserBlocked(content.authorId)
+            val blockedUserIds = blockedUserDao.getAllUsers().mapTo(hashSetOf()) { it.userId }
+            val blockedQuestionAuthorIds = blockedQuestionAuthorDao.getAllUsers().mapTo(hashSetOf()) { it.userId }
+            val kept = ArrayList<FilterableContent>(filteredContents.size)
+            filteredContents.forEach { content ->
+                when {
+                    content.authorId in blockedUserIds ->
+                        blocked.add(content to "屏蔽作者：${content.authorName ?: content.authorId}")
+                    content.questionAuthorId in blockedQuestionAuthorIds ->
+                        blocked.add(content to "屏蔽提问者：${content.questionAuthorName ?: content.questionAuthorId}")
+                    else -> kept.add(content)
+                }
             }
-            removed.forEach { blocked.add(it to "屏蔽作者：${it.authorName ?: it.authorId}") }
             filteredContents = kept
         }
 
@@ -208,7 +216,6 @@ fun interface ContentDetailProvider {
 
 class FeedDisplayFilterPipeline(
     private val settings: FeedFilterSettings,
-    private val showBlockedContent: Boolean = false,
     private val contentDetailProvider: ContentDetailProvider,
     private val contentFilterPipeline: FeedContentFilterPipeline,
     private val blockedFeedRecordDao: BlockedFeedRecordDao,
@@ -242,16 +249,6 @@ class FeedDisplayFilterPipeline(
 
         val filterableContents = itemToFilterableMap.values.toList()
 
-        if (settings.reverseBlock) {
-            val adIds = filterableContents
-                .filter { content -> getFeedAdBlockReason(content, FeedAdBlockSettings()) != null }
-                .map { it.contentId }
-                .toSet()
-            return items.filter { item ->
-                item.resolveContentIdentity().id in adIds
-            } + items.filter { it.feed is AdvertisementFeed }
-        }
-
         val adBlockedContents = mutableListOf<Pair<FilterableContent, String>>()
         val nonAdContents = filterableContents.filter { content ->
             val blockReason = getFeedAdBlockReason(content, settings.adBlockSettings)
@@ -281,23 +278,7 @@ class FeedDisplayFilterPipeline(
             saveBlockedFeedRecords(blockedFeedRecordDao, allBlocked)
         }
 
-        val blockedById = allBlocked.associate { (content, reason) -> content.contentId to reason }
-        val blockedPlaceholders = if (showBlockedContent) {
-            otherItems.mapNotNull { item ->
-                blockedById[item.resolveContentIdentity().id]?.let { reason ->
-                    item.copy(
-                        title = "已屏蔽",
-                        summary = reason,
-                        isFiltered = true,
-                        raw = null,
-                    )
-                }
-            }
-        } else {
-            emptyList()
-        }
-
-        return (followedUserItems + filteredOtherItems + blockedPlaceholders).filterDetailsKeywords()
+        return (followedUserItems + filteredOtherItems).filterDetailsKeywords()
     }
 
     private suspend fun resolveRawContent(item: FeedDisplayItem): DataHolder.Content = when (val dest = item.navDestination) {
@@ -373,6 +354,8 @@ data class FilterableContent(
     val url: String? = null,
     val feedJson: String? = null,
     val navDestinationJson: String? = null,
+    val questionAuthorName: String? = null,
+    val questionAuthorId: String? = null,
 )
 
 data class FeedContentIdentity(
@@ -382,17 +365,10 @@ data class FeedContentIdentity(
 
 fun FeedDisplayItem.resolveContentIdentity(): FeedContentIdentity {
     val identity = navDestination?.let(ContentOpenEventSupport::toTrackedContentIdentity)
-    if (identity != null) {
-        return FeedContentIdentity(identity.type, identity.id)
-    }
-
-    return when (val target = feed?.target) {
-        is Feed.AnswerTarget -> FeedContentIdentity(ContentType.ANSWER, target.id.toString())
-        is Feed.ArticleTarget -> FeedContentIdentity(ContentType.ARTICLE, target.id.toString())
-        is Feed.QuestionTarget -> FeedContentIdentity(ContentType.QUESTION, target.id.toString())
-        is Feed.PinTarget -> FeedContentIdentity(ContentType.PIN, target.id.toString())
-        is Feed.VideoTarget -> FeedContentIdentity(ContentType.VIDEO, target.id.toString())
-        null -> FeedContentIdentity("unknown", navDestination.hashCode().toString())
+    return if (identity != null) {
+        FeedContentIdentity(identity.type, identity.id)
+    } else {
+        FeedContentIdentity("unknown", navDestination.hashCode().toString())
     }
 }
 
@@ -408,13 +384,23 @@ fun FeedDisplayItem.toFilterableContent(
         is DataHolder.Pin -> rawContent.contentHtml
         else -> null
     } ?: content ?: summary,
-    authorName = authorName ?: feed?.target?.author?.name,
-    authorId = rawContent.author?.id ?: feed?.target?.author?.id,
+    authorName = authorName,
+    authorId = rawContent.author?.id,
     contentId = identity.id,
     contentType = identity.type,
     raw = rawContent,
-    isFollowing = rawContent.author?.isFollowing ?: feed?.target?.author?.isFollowing ?: false,
+    isFollowing = rawContent.author?.isFollowing ?: false,
     questionId = (rawContent as? DataHolder.Answer)?.question?.id,
+    questionAuthorName = feed?.target?.questionAuthor?.name ?: when (rawContent) {
+        is DataHolder.Answer -> rawContent.question.author?.name
+        is DataHolder.Question -> rawContent.author.name
+        else -> null
+    },
+    questionAuthorId = feed?.target?.questionAuthor?.id ?: when (rawContent) {
+        is DataHolder.Answer -> rawContent.question.author?.id
+        is DataHolder.Question -> rawContent.author.id
+        else -> null
+    },
     url = feed?.target?.url,
     feedJson = feed?.let { runCatching { feedFilterRecordJson.encodeToString(it) }.getOrNull() },
     navDestinationJson = navDestination?.let { runCatching { feedFilterRecordJson.encodeToString(it) }.getOrNull() },
@@ -484,7 +470,6 @@ private fun getLinkBasedAdReason(
 
 data class FeedFilterSettings(
     val enableContentFilter: Boolean = true,
-    val reverseBlock: Boolean = false,
     val filterFollowedUserContent: Boolean = false,
     val enableKeywordBlocking: Boolean = true,
     val enableNlpBlocking: Boolean = true,
@@ -497,7 +482,6 @@ data class FeedFilterSettings(
 
 fun SettingsStore.toFeedFilterSettings(): FeedFilterSettings = FeedFilterSettings(
     enableContentFilter = getBoolean("enableContentFilter", true),
-    reverseBlock = getBoolean("reverseBlock", false),
     filterFollowedUserContent = getBoolean("filterFollowedUserContent", false),
     enableKeywordBlocking = getBoolean("enableKeywordBlocking", true),
     enableNlpBlocking = getBoolean("enableNLPBlocking", true),
