@@ -72,7 +72,6 @@ import com.github.zly2006.zhihu.markdown.rememberMarkdownImageModel
 import com.github.zly2006.zhihu.navigation.LocalNavigator
 import com.github.zly2006.zhihu.navigation.Pin
 import com.github.zly2006.zhihu.shared.platform.rememberPlainTextClipboard
-import com.github.zly2006.zhihu.shared.platform.rememberSettingsStore
 import com.github.zly2006.zhihu.shared.platform.rememberUserMessageSink
 import com.github.zly2006.zhihu.ui.components.WriteContentFabColumn
 import com.github.zly2006.zhihu.ui.components.WriteContentMarkdownEditor
@@ -98,7 +97,6 @@ fun WritePinScreen() {
     val publisher = rememberZhihuPinPublisher()
     val coroutineScope = rememberCoroutineScope()
     val copyToClipboard = rememberPlainTextClipboard()
-    val settings = rememberSettingsStore()
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
 
@@ -110,37 +108,17 @@ fun WritePinScreen() {
     var errorDialogMessage by remember { mutableStateOf<String?>(null) }
     var showPreviewSheet by remember { mutableStateOf(false) }
     val previewSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var isPreviewLoading by remember { mutableStateOf(false) }
-    var previewHtml by remember { mutableStateOf<String?>(null) }
     var previewMarkdown by remember { mutableStateOf<String?>(null) }
-    var previewUseWebView by remember { mutableStateOf(false) }
 
     fun showPreview() {
         if (isSubmitting || content.text.isBlank()) return
-        val useWebView = settings.getBoolean(ARTICLE_USE_WEBVIEW_PREFERENCE_KEY, false)
         val markdownSnapshot = content.text
         coroutineScope.launch {
             focusManager.clearFocus(force = true)
             keyboardController?.hide()
             yield()
-            previewUseWebView = useWebView
             previewMarkdown = markdownSnapshot
-            previewHtml = null
             showPreviewSheet = true
-            if (!useWebView) {
-                isPreviewLoading = false
-                return@launch
-            }
-            isPreviewLoading = true
-            runCatching {
-                compileMdToZhihuHtml(markdown = markdownSnapshot)
-            }.onSuccess { html ->
-                previewHtml = html
-            }.onFailure { e ->
-                errorDialogMessage = buildWriteOperationErrorMessage("生成预览失败", e)
-                showPreviewSheet = false
-            }
-            isPreviewLoading = false
         }
     }
 
@@ -378,13 +356,9 @@ fun WritePinScreen() {
     if (showPreviewSheet) {
         WriteContentPreviewSheet(
             sheetState = previewSheetState,
-            useWebView = previewUseWebView,
-            isLoading = isPreviewLoading,
-            html = previewHtml,
             markdown = previewMarkdown,
             onDismissRequest = {
                 showPreviewSheet = false
-                isPreviewLoading = false
             },
         )
     }

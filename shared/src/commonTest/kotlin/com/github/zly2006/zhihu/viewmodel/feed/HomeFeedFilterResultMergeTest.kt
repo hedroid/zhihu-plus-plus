@@ -27,35 +27,15 @@ import kotlin.test.assertEquals
 
 class HomeFeedFilterResultMergeTest {
     @Test
-    fun removesBlockedPlaceholderByDefault() {
+    fun replacesForegroundItemWithFilteredVersion() {
         val foregroundItem = item("原始文章")
-        val filteredItem = foregroundItem.copy(title = "已屏蔽", summary = "规则：文章", isFiltered = true)
+        val filteredItem = foregroundItem.copy(title = "已屏蔽", summary = "规则：文章")
         val displayItems = mutableListOf(foregroundItem)
 
         displayItems.replaceHomeFeedItemsWithFilteredResult(
             HomeFeedFilterResult(
                 foregroundItems = listOf(foregroundItem),
                 filteredItems = listOf(filteredItem),
-                reverseBlock = false,
-                showBlockedContent = false,
-            ),
-        )
-
-        assertEquals(emptyList(), displayItems.map { it.title })
-    }
-
-    @Test
-    fun replacesForegroundItemWithBlockedPlaceholderWhenEnabled() {
-        val foregroundItem = item("原始文章")
-        val filteredItem = foregroundItem.copy(title = "已屏蔽", summary = "规则：文章", isFiltered = true)
-        val displayItems = mutableListOf(foregroundItem)
-
-        displayItems.replaceHomeFeedItemsWithFilteredResult(
-            HomeFeedFilterResult(
-                foregroundItems = listOf(foregroundItem),
-                filteredItems = listOf(filteredItem),
-                reverseBlock = false,
-                showBlockedContent = true,
             ),
         )
 
@@ -78,8 +58,6 @@ class HomeFeedFilterResultMergeTest {
             HomeFeedFilterResult(
                 foregroundItems = listOf(blockedItem),
                 filteredItems = emptyList(),
-                reverseBlock = false,
-                showBlockedContent = false,
             ),
         )
 

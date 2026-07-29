@@ -20,18 +20,12 @@ package com.github.zly2006.zhihu.ui
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -40,12 +34,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.github.zly2006.zhihu.shared.data.HotListFeed
 import com.github.zly2006.zhihu.shared.platform.UserMessageDuration
-import com.github.zly2006.zhihu.shared.platform.rememberSettingsStore
 import com.github.zly2006.zhihu.shared.platform.rememberUserMessageSink
 import com.github.zly2006.zhihu.shared.ui.TopLevelReselectAction
 import com.github.zly2006.zhihu.shared.ui.topLevelReselectAction
-import com.github.zly2006.zhihu.ui.components.BlockUserConfirmDialog
-import com.github.zly2006.zhihu.ui.components.DraggableRefreshButton
 import com.github.zly2006.zhihu.ui.components.FeedCard
 import com.github.zly2006.zhihu.ui.components.FeedPullToRefresh
 import com.github.zly2006.zhihu.ui.components.PaginatedList
@@ -54,12 +45,11 @@ import com.github.zly2006.zhihu.viewmodel.feed.HotListViewModel
 import com.github.zly2006.zhihu.viewmodel.rememberPaginationEnvironment
 
 const val HOT_LIST_LIST_TAG = "hot_list_list"
-const val HOT_LIST_REFRESH_BUTTON_TAG = "hot_list_refresh_button"
 
 /**
  * 热榜页面。
  *
- * 页面主体是知乎热榜分页列表，支持下拉刷新、加载更多和刷新 FAB。它既可以作为主 tab 页使用，
+ * 页面主体是知乎热榜分页列表，支持下拉刷新和加载更多。它既可以作为主 tab 页使用，
  * 也可以在测试中通过 [onTestRefreshClick]、[onTestLoadMore] 控制分页行为，因此新增交互时要保留测试注入路径。
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -74,7 +64,6 @@ fun HotListScreen(
     val viewModel: HotListViewModel = viewModel { HotListViewModel() }
     val environment = rememberPaginationEnvironment(viewModel.allowGuestAccess)
     val userMessages = rememberUserMessageSink()
-    val settings = rememberSettingsStore()
     val listState = rememberLazyListState()
     var cachedScrollToTopTrigger by remember { mutableIntStateOf(scrollToTopTrigger) }
 
@@ -105,10 +94,6 @@ fun HotListScreen(
         }
     }
 
-    // 屏蔽用户确认弹窗。
-    var showBlockUserDialog by remember { mutableStateOf(false) }
-    var userToBlock by remember { mutableStateOf<Pair<String, String>?>(null) }
-
     Column {
         FeedPullToRefresh(viewModel, environment) {
             PaginatedList(
@@ -126,38 +111,6 @@ fun HotListScreen(
                     thumbnailUrl = (item.feed as? HotListFeed)?.children?.firstOrNull()?.thumbnail,
                 )
             }
-
-            val showRefreshFab = remember { settings.getBoolean("showRefreshFab", true) }
-            if (showRefreshFab) {
-                DraggableRefreshButton(
-                    modifier = Modifier.testTag(HOT_LIST_REFRESH_BUTTON_TAG),
-                    onClick = {
-                        onTestRefreshClick?.invoke() ?: viewModel.refresh(environment)
-                    },
-                ) {
-                    if (viewModel.isLoading) {
-                        CircularProgressIndicator(modifier = Modifier.size(36.dp))
-                    } else {
-                        Icon(Icons.Default.Refresh, contentDescription = "刷新")
-                    }
-                }
-            }
         }
-
-        // 屏蔽用户确认弹窗。
-        BlockUserConfirmDialog(
-            showDialog = showBlockUserDialog,
-            userToBlock = userToBlock,
-            displayItems = viewModel.displayItems,
-            onDismiss = {
-                showBlockUserDialog = false
-                userToBlock = null
-            },
-            onConfirm = {
-                viewModel.refresh(environment)
-                showBlockUserDialog = false
-                userToBlock = null
-            },
-        )
     }
 }

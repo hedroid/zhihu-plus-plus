@@ -17,7 +17,6 @@
 
 package com.github.zly2006.zhihu.ui
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -31,11 +30,13 @@ import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.unit.em
-import com.github.zly2006.zhihu.markdown.RenderMarkdown
 import com.github.zly2006.zhihu.navigation.Article
 import com.github.zly2006.zhihu.navigation.TopLevelDestination
+import com.github.zly2006.zhihu.shared.data.FeedDisplayItem
+import com.github.zly2006.zhihu.shared.data.RecommendationMode
 import com.github.zly2006.zhihu.shared.desktop.DesktopAccountStore
 import com.github.zly2006.zhihu.shared.desktop.DesktopLoginRequests
+import com.github.zly2006.zhihu.shared.desktop.desktopZhihuDataFile
 import com.github.zly2006.zhihu.shared.desktop.openDesktopExternalUrl
 import com.github.zly2006.zhihu.shared.notification.NotificationSettingsStore
 import com.github.zly2006.zhihu.shared.platform.UserMessageSink
@@ -228,13 +229,40 @@ actual fun rememberHomeUpdateAnnouncement(): HomeUpdateAnnouncement? {
     return (updateState as? SystemUpdateState.UpdateAvailable)?.let {
         HomeUpdateAnnouncement(
             version = it.version,
-            isNightly = it.isNightly,
         )
     }
 }
 
 @Composable
-actual fun rememberHomeInstalledAtLeastThreeHours(): Boolean = false
+actual fun rememberHomeFeedStartupCache(recommendationMode: RecommendationMode): HomeFeedStartupCache {
+    val startupCacheFile = remember(recommendationMode) {
+        desktopZhihuDataFile(homeFeedStartupCacheFileName(recommendationMode))
+    }
+    return remember(startupCacheFile) {
+        HomeFeedStartupCache(
+            readHomeFeedStartupCache = {
+                withContext(Dispatchers.IO) {
+                    if (startupCacheFile.exists()) {
+                        decodeHomeFeedStartupSnapshot(startupCacheFile.readText())
+                    } else {
+                        emptyList()
+                    }
+                }
+            },
+            writeHomeFeedStartupCache = { items: List<FeedDisplayItem> ->
+                withContext(Dispatchers.IO) {
+                    val serialized = encodeHomeFeedStartupSnapshot(items)
+                    if (serialized != null) {
+                        runCatching {
+                            startupCacheFile.parentFile?.mkdirs()
+                            startupCacheFile.writeText(serialized)
+                        }
+                    }
+                }
+            },
+        )
+    }
+}
 
 @Composable
 actual fun rememberHomeIsDebuggable(): Boolean = true
@@ -263,6 +291,7 @@ actual fun rememberBlocklistRuleImporter(
                         val summary = importBlocklistBackupFromJsonText(
                             keywordDao = database.blockedKeywordDao(),
                             userDao = database.blockedUserDao(),
+                            questionAuthorDao = database.blockedQuestionAuthorDao(),
                             topicDao = database.blockedTopicDao(),
                             text = selectedFile.readText(),
                         )
@@ -291,6 +320,7 @@ actual fun rememberBlocklistRuleExporter(): suspend () -> String {
                 encodeBlocklistBackup(
                     keywordDao = database.blockedKeywordDao(),
                     userDao = database.blockedUserDao(),
+                    questionAuthorDao = database.blockedQuestionAuthorDao(),
                     topicDao = database.blockedTopicDao(),
                 ),
             )
@@ -368,6 +398,9 @@ private object DesktopAccountSettingsState {
     }
 
     fun clear() {
+        homeFeedStartupCacheFileNames().forEach { fileName ->
+            desktopZhihuDataFile(fileName).delete()
+        }
         store.clear()
         accountState.value = AccountSettingsAccountState()
     }
@@ -385,45 +418,7 @@ private fun com.github.zly2006.zhihu.shared.account.ZhihuAccountSession.toAccoun
 @Composable
 actual fun rememberArticleHost(): ArticleHost? = null
 
-@Composable
-actual fun ArticlePreviewPreloadEffect(
-    cached: com.github.zly2006.zhihu.viewmodel.ArticleViewModel.CachedAnswerContent?,
-    isNext: Boolean,
-    title: String,
-    onImageLoadFailed: () -> Unit,
-) = Unit
-
-@Composable
-actual fun ArticleWebViewContent(
-    article: Article,
-    html: String,
-    title: String,
-    scrollState: ScrollState,
-    rememberedScrollY: Int,
-    rememberedScrollYSync: Boolean,
-    onRememberedScrollYSyncChange: (Boolean) -> Unit,
-    onImageLoadFailed: () -> Unit,
-    onDoubleTap: () -> Unit,
-) {
-    RenderMarkdown(
-        html = html,
-        modifier = Modifier,
-        selectable = true,
-        enableScroll = false,
-        header = {},
-        footer = {},
-    )
-}
-
 actual fun Modifier.articleMarkdownSelectionWorkaround(): Modifier = this
-
-/**
- * 桌面端不支持 WebView
- */
-@Composable
-actual fun ZhihuHtmlWebViewContent(html: String) = Unit
-
-actual fun supportsZhihuHtmlWebView(): Boolean = false
 
 @Composable
 actual fun rememberNotificationEnvironment(
@@ -449,14 +444,6 @@ actual fun rememberZhihuHttpClient(): HttpClient {
     val store = remember { DesktopAccountStore() }
     return store.httpClient()
 }
-
-@Composable
-actual fun QuestionDetailWebViewContent(
-    questionId: Long,
-    html: String,
-) = Unit // TODO: 桌面端问题 WebView
-
-actual fun supportsQuestionDetailWebView(): Boolean = false
 
 actual fun Modifier.questionSelectionWorkaround(): Modifier = this
 

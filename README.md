@@ -26,8 +26,6 @@ Zhihu++独创本地推荐算法，把内容推荐完全放在本地进行，为�
 
 [点我下载](https://github.com/hedroid/zhihu-plus-plus/releases)
 
-[下载最新开发版本](https://github.com/hedroid/zhihu-plus-plus/releases/tag/nightly)
-
 Release 页面还提供实验性桌面版 jar（macOS arm64 / Linux x64 / Windows x64），需要本机安装 Java 17 或更高版本。
 
 > 关于Full和Lite两个版本的说明：

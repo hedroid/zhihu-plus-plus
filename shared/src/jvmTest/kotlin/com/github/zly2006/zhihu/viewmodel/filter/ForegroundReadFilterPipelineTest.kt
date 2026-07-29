@@ -32,7 +32,7 @@ import kotlin.test.assertEquals
 
 class ForegroundReadFilterPipelineTest {
     @Test
-    fun disabledOrReverseBlockReturnsItemsWithoutRecording() = runTest {
+    fun disabledReturnsItemsWithoutRecording() = runTest {
         val fixture = fixture(settings = FeedFilterSettings(enableContentFilter = false))
         val item = item("item", 1)
 

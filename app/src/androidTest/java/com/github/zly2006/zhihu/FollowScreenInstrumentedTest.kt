@@ -17,7 +17,6 @@
 
 package com.github.zly2006.zhihu
 
-import android.content.Context
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -34,11 +33,11 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeRight
-import androidx.core.content.edit
 import androidx.lifecycle.ViewModelProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.zly2006.zhihu.navigation.Person
 import com.github.zly2006.zhihu.navigation.Search
+import com.github.zly2006.zhihu.shared.data.CommonFeed
 import com.github.zly2006.zhihu.shared.data.FeedDisplayItem
 import com.github.zly2006.zhihu.shared.data.toFeedDisplayItemNavDestinationJson
 import com.github.zly2006.zhihu.test.MainActivityComposeRule
@@ -47,13 +46,10 @@ import com.github.zly2006.zhihu.test.performVerticalSwipeCycle
 import com.github.zly2006.zhihu.test.resetAppPreferences
 import com.github.zly2006.zhihu.test.setScreenContent
 import com.github.zly2006.zhihu.ui.FOLLOW_DYNAMIC_LIST_TAG
-import com.github.zly2006.zhihu.ui.FOLLOW_DYNAMIC_REFRESH_BUTTON_TAG
 import com.github.zly2006.zhihu.ui.FOLLOW_RECOMMEND_LIST_TAG
-import com.github.zly2006.zhihu.ui.FOLLOW_RECOMMEND_REFRESH_BUTTON_TAG
 import com.github.zly2006.zhihu.ui.FOLLOW_SCREEN_PAGER_TAG
 import com.github.zly2006.zhihu.ui.FollowScreen
 import com.github.zly2006.zhihu.ui.FollowScreenData
-import com.github.zly2006.zhihu.ui.PREFERENCE_NAME
 import com.github.zly2006.zhihu.viewmodel.feed.FollowRecommendViewModel
 import com.github.zly2006.zhihu.viewmodel.feed.FollowViewModel
 import com.github.zly2006.zhihu.viewmodel.feed.RecentMomentsViewModel
@@ -105,70 +101,65 @@ class FollowScreenInstrumentedTest {
          *    bottom-page state and the deterministic offline row content on each side.
          * 4. Tab switching alone must not emit any navigator events because no row was clicked yet.
          */
+        val recommendItems = seededRecommendItems(count = 8)
+        val dynamicItems = seededDynamicItems(count = 8)
+        val firstRecommendTag = "follow_recommend_item_${recommendItems.first().stableKey}"
+        val firstDynamicTag = "follow_dynamic_item_${dynamicItems.first().stableKey}"
         val navigator = setFollowScreen(
-            showRefreshFab = false,
-            recommendItems = seededRecommendItems(count = 8),
-            dynamicItems = seededDynamicItems(count = 8),
+            recommendItems = recommendItems,
+            dynamicItems = dynamicItems,
             recentUsers = emptyList(),
         )
 
         composeRule.waitUntilTagSelected("follow_screen_tab_0")
         composeRule.onNodeWithTag("follow_screen_tab_0").assertIsSelected()
         composeRule.onNodeWithTag("follow_screen_tab_1").assertIsNotSelected()
-        composeRule.onNodeWithTag("follow_recommend_item_recommend-item-1").assertIsDisplayed()
+        composeRule.onNodeWithTag(firstRecommendTag).assertIsDisplayed()
 
         composeRule.onNodeWithTag("follow_screen_tab_1").performClick()
 
         composeRule.waitUntilTagSelected("follow_screen_tab_1")
         composeRule.onNodeWithTag("follow_screen_tab_1").assertIsSelected()
         composeRule.onNodeWithTag("follow_screen_tab_0").assertIsNotSelected()
-        composeRule.onNodeWithTag("follow_dynamic_item_dynamic-item-1").assertIsDisplayed()
+        composeRule.onNodeWithTag(firstDynamicTag).assertIsDisplayed()
         composeRule.onNodeWithText("关注用户 1 赞同了回答").assertIsDisplayed()
 
         composeRule.onNodeWithTag(FOLLOW_SCREEN_PAGER_TAG).performTouchInput { swipeRight() }
 
         composeRule.waitUntilTagSelected("follow_screen_tab_0")
-        composeRule.onNodeWithTag("follow_recommend_item_recommend-item-1").assertIsDisplayed()
+        composeRule.onNodeWithTag(firstRecommendTag).assertIsDisplayed()
 
         composeRule.onNodeWithTag(FOLLOW_SCREEN_PAGER_TAG).performTouchInput { swipeLeft() }
 
         composeRule.waitUntilTagSelected("follow_screen_tab_1")
-        composeRule.onNodeWithTag("follow_dynamic_item_dynamic-item-1").assertIsDisplayed()
+        composeRule.onNodeWithTag(firstDynamicTag).assertIsDisplayed()
         assertTrue(navigator.destinations.isEmpty())
         assertEquals(0, navigator.backCount)
     }
 
     @Test
-    fun recommendTab_exposesRefreshAndClickableRows_withDeterministicNavigation() {
+    fun recommendTab_exposesClickableRows_withDeterministicNavigation() {
         /*
          * Expected behavior:
-         * 1. The recommendation page should render the following-users strip and the refresh FAB from
-         *    seeded local state without triggering the real refresh path.
-         * 2. Clicking the refresh affordance must route through the injected test seam so the test can
-         *    prove stable interaction without clearing the seeded list.
-         * 3. A following-user chip must navigate to Person(..., jumpTo = "动态") with the seeded identity.
-         * 4. A seeded recommendation feed row must remain clickable and navigate to its deterministic
+         * 1. The recommendation page should render the following-users strip from seeded local state.
+         * 2. A following-user chip must navigate to Person(..., jumpTo = "动态") with the seeded identity.
+         * 3. A seeded recommendation feed row must remain clickable and navigate to its deterministic
          *    offline destination exactly once.
          */
-        var recommendRefreshClicks = 0
+        val recommendItems = seededRecommendItems(count = 6)
+        val firstRecommendTag = "follow_recommend_item_${recommendItems.first().stableKey}"
         val navigator = setFollowScreen(
-            showRefreshFab = true,
-            recommendItems = seededRecommendItems(count = 6),
+            recommendItems = recommendItems,
             dynamicItems = seededDynamicItems(count = 4),
             recentUsers = seededRecentUsers(count = 2),
-            onTestRecommendRefreshClick = { recommendRefreshClicks++ },
         )
 
-        composeRule.onNodeWithTag(FOLLOW_RECOMMEND_REFRESH_BUTTON_TAG).assertIsDisplayed()
         composeRule.onNodeWithTag("following_users_item_follow-user-1").assertIsDisplayed()
-        composeRule.onNodeWithTag("follow_recommend_item_recommend-item-1").assertIsDisplayed()
+        composeRule.onNodeWithTag(firstRecommendTag).assertIsDisplayed()
 
-        composeRule.onNodeWithTag(FOLLOW_RECOMMEND_REFRESH_BUTTON_TAG).performClick()
-        composeRule.onNodeWithTag(FOLLOW_RECOMMEND_REFRESH_BUTTON_TAG).performClick()
         composeRule.onNodeWithTag("following_users_item_follow-user-1").performClick()
-        composeRule.onNodeWithTag("follow_recommend_item_recommend-item-1").performClick()
+        composeRule.onNodeWithTag(firstRecommendTag).performClick()
 
-        assertEquals(2, recommendRefreshClicks)
         assertEquals(
             listOf(
                 Person(
@@ -197,10 +188,14 @@ class FollowScreenInstrumentedTest {
          */
         var recommendLoadMoreCount = 0
         var dynamicLoadMoreCount = 0
+        val recommendItems = seededRecommendItems(count = 28)
+        val dynamicItems = seededDynamicItems(count = 28)
+        val recommendTailTag = "follow_recommend_item_${recommendItems[23].stableKey}"
+        val dynamicTailTag = "follow_dynamic_item_${dynamicItems[23].stableKey}"
+        val dynamicClickTag = "follow_dynamic_item_${dynamicItems[2].stableKey}"
         val navigator = setFollowScreen(
-            showRefreshFab = true,
-            recommendItems = seededRecommendItems(count = 28),
-            dynamicItems = seededDynamicItems(count = 28),
+            recommendItems = recommendItems,
+            dynamicItems = dynamicItems,
             recentUsers = seededRecentUsers(count = 1),
             onTestRecommendLoadMore = { recommendLoadMoreCount++ },
             onTestDynamicLoadMore = { dynamicLoadMoreCount++ },
@@ -209,31 +204,30 @@ class FollowScreenInstrumentedTest {
         composeRule.onNodeWithTag(FOLLOW_RECOMMEND_LIST_TAG).assertIsDisplayed()
         composeRule
             .onNodeWithTag(FOLLOW_RECOMMEND_LIST_TAG)
-            .performScrollToNode(hasTestTag("follow_recommend_item_recommend-item-24"))
-        composeRule.onNodeWithTag("follow_recommend_item_recommend-item-24").assertIsDisplayed()
+            .performScrollToNode(hasTestTag(recommendTailTag))
+        composeRule.onNodeWithTag(recommendTailTag).assertIsDisplayed()
         composeRule.onNodeWithTag(FOLLOW_RECOMMEND_LIST_TAG).performVerticalSwipeCycle()
         composeRule
             .onNodeWithTag(FOLLOW_RECOMMEND_LIST_TAG)
-            .performScrollToNode(hasTestTag("follow_recommend_item_recommend-item-24"))
-        composeRule.onNodeWithTag("follow_recommend_item_recommend-item-24").assertIsDisplayed()
+            .performScrollToNode(hasTestTag(recommendTailTag))
+        composeRule.onNodeWithTag(recommendTailTag).assertIsDisplayed()
 
         composeRule.onNodeWithTag("follow_screen_tab_1").performClick()
         composeRule.waitUntilTagSelected("follow_screen_tab_1")
-        composeRule.onNodeWithTag(FOLLOW_DYNAMIC_REFRESH_BUTTON_TAG).assertIsDisplayed()
         composeRule
             .onNodeWithTag(FOLLOW_DYNAMIC_LIST_TAG)
-            .performScrollToNode(hasTestTag("follow_dynamic_item_dynamic-item-24"))
-        composeRule.onNodeWithTag("follow_dynamic_item_dynamic-item-24").assertIsDisplayed()
+            .performScrollToNode(hasTestTag(dynamicTailTag))
+        composeRule.onNodeWithTag(dynamicTailTag).assertIsDisplayed()
         composeRule.onNodeWithTag(FOLLOW_DYNAMIC_LIST_TAG).performVerticalSwipeCycle()
         composeRule
             .onNodeWithTag(FOLLOW_DYNAMIC_LIST_TAG)
-            .performScrollToNode(hasTestTag("follow_dynamic_item_dynamic-item-24"))
-        composeRule.onNodeWithTag("follow_dynamic_item_dynamic-item-24").assertIsDisplayed()
+            .performScrollToNode(hasTestTag(dynamicTailTag))
+        composeRule.onNodeWithTag(dynamicTailTag).assertIsDisplayed()
 
         composeRule
             .onNodeWithTag(FOLLOW_DYNAMIC_LIST_TAG)
-            .performScrollToNode(hasTestTag("follow_dynamic_item_dynamic-item-3"))
-        composeRule.onNodeWithTag("follow_dynamic_item_dynamic-item-3").performClick()
+            .performScrollToNode(hasTestTag(dynamicClickTag))
+        composeRule.onNodeWithTag(dynamicClickTag).performClick()
 
         composeRule.runOnIdle {
             assertTrue(recommendLoadMoreCount > 0)
@@ -243,16 +237,12 @@ class FollowScreenInstrumentedTest {
     }
 
     private fun setFollowScreen(
-        showRefreshFab: Boolean,
         recommendItems: List<FeedDisplayItem>,
         dynamicItems: List<FeedDisplayItem>,
         recentUsers: List<RecentMomentsViewModel.FollowingUserItem>,
-        onTestRecommendRefreshClick: (() -> Unit)? = null,
         onTestRecommendLoadMore: (() -> Unit)? = null,
-        onTestDynamicRefreshClick: (() -> Unit)? = null,
         onTestDynamicLoadMore: (() -> Unit)? = null,
     ): RecordingNavigator {
-        setShowRefreshFabPreference(showRefreshFab)
         seedFollowScreenState(
             recommendItems = recommendItems,
             dynamicItems = dynamicItems,
@@ -263,9 +253,9 @@ class FollowScreenInstrumentedTest {
             FollowScreen(
                 innerPadding = PaddingValues(),
                 parentPagerState = parentPagerState,
-                onTestRecommendRefreshClick = onTestRecommendRefreshClick,
+                onTestRecommendRefreshClick = null,
                 onTestRecommendLoadMore = onTestRecommendLoadMore,
-                onTestDynamicRefreshClick = onTestDynamicRefreshClick,
+                onTestDynamicRefreshClick = null,
                 onTestDynamicLoadMore = onTestDynamicLoadMore,
             )
         }
@@ -312,14 +302,6 @@ class FollowScreenInstrumentedTest {
         composeRule.waitForIdle()
     }
 
-    private fun setShowRefreshFabPreference(enabled: Boolean) {
-        composeRule.activity.getSharedPreferences(PREFERENCE_NAME, Context.MODE_PRIVATE).edit(commit = true) {
-            putBoolean("showRefreshFab", enabled)
-            putBoolean("loginForRecommendation", false)
-        }
-        composeRule.waitForIdle()
-    }
-
     private fun MainActivityComposeRule.waitUntilTagSelected(tag: String) {
         waitUntil(timeoutMillis = 5_000) {
             this.onAllNodes(hasTestTag(tag).and(isSelectedMatcher())).fetchSemanticsNodes().isNotEmpty()
@@ -339,7 +321,6 @@ class FollowScreenInstrumentedTest {
             details = "离线推荐详情 $itemId",
             feed = null,
             navDestinationJson = Search(query = "follow-recommend-$itemId").toFeedDisplayItemNavDestinationJson(),
-            localFeedId = "recommend-item-$itemId",
         )
     }
 
@@ -349,10 +330,11 @@ class FollowScreenInstrumentedTest {
             title = "动态离线条目 ${itemId.toString().padStart(2, '0')}",
             summary = "这是第 $itemId 条 Follow 动态页离线摘要。",
             details = "离线动态详情 $itemId",
-            feed = null,
+            feed = CommonFeed(
+                id = "dynamic-item-$itemId",
+                actionText = "关注用户 $itemId 赞同了回答",
+            ),
             navDestinationJson = Search(query = "follow-dynamic-$itemId").toFeedDisplayItemNavDestinationJson(),
-            localFeedId = "dynamic-item-$itemId",
-            sourceLabel = "关注用户 $itemId 赞同了回答",
         )
     }
 

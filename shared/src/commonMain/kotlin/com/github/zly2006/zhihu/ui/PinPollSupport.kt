@@ -18,36 +18,7 @@
 package com.github.zly2006.zhihu.ui
 
 import com.github.zly2006.zhihu.shared.data.DataHolder
-import com.github.zly2006.zhihu.shared.data.ZhihuJson
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
 import kotlin.time.Clock
-
-const val ZHIHU_PLUS_AUTHOR_URL_TOKEN = "scanmenge"
-const val ZHIHU_PLUS_AUTHOR_PINS_URL = "https://www.zhihu.com/api/v4/v2/pins/$ZHIHU_PLUS_AUTHOR_URL_TOKEN/moments"
-
-data class HomePollAnnouncement(
-    val pinId: Long,
-    val pollId: String,
-    val title: String,
-    val optionCount: Int,
-    val memberCount: Int,
-    val isVoted: Boolean,
-)
-
-internal fun decodeHomePollAnnouncements(
-    response: JsonObject,
-): List<HomePollAnnouncement> =
-    response["data"]
-        ?.jsonArray
-        ?.mapNotNull { item ->
-            val pin = runCatching {
-                ZhihuJson.decodeJson<DataHolder.Pin>(item.jsonObject)
-            }.getOrNull()
-            pin?.toHomePollAnnouncement()
-        }
-        ?: emptyList()
 
 internal fun DataHolder.Pin.withSelectedPinPollOption(
     pollId: String,
@@ -105,19 +76,4 @@ internal fun DataHolder.Pin.Poll.statusText(): String {
             append(validity)
         }
     }
-}
-
-internal fun DataHolder.Pin.toHomePollAnnouncement(): HomePollAnnouncement? {
-    val poll = bottomPoll?.voting ?: return null
-    if (!poll.acceptsVote()) {
-        return null
-    }
-    return HomePollAnnouncement(
-        pinId = id.toLongOrNull() ?: return null,
-        pollId = poll.id,
-        title = poll.title.ifBlank { "想法投票" },
-        optionCount = poll.options.size,
-        memberCount = poll.memberCount,
-        isVoted = poll.isVoted,
-    )
 }

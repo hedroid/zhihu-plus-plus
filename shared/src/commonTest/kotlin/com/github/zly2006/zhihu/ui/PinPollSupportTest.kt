@@ -61,29 +61,6 @@ class PinPollSupportTest {
         assertEquals(2, poll.options[1].votingCount)
     }
 
-    @Test
-    fun homeAnnouncementExtractionKeepsAllActiveAuthorPolls() {
-        val response = ZhihuJson.json
-            .parseToJsonElement(
-                """
-                {
-                  "data": [
-                    ${pinJson(id = "101", pollId = "poll-101", title = "第一个反馈投票")},
-                    ${pinJson(id = "102", pollId = "poll-102", title = "第二个反馈投票")},
-                    ${pinJson(id = "103", pollId = "poll-103", title = "已结束反馈投票", endAt = 1000)}
-                  ]
-                }
-                """.trimIndent(),
-            ).jsonObject
-
-        val announcements = decodeHomePollAnnouncements(response)
-
-        assertEquals(listOf(101L, 102L), announcements.map { it.pinId })
-        assertEquals(listOf("poll-101", "poll-102"), announcements.map { it.pollId })
-        assertEquals("第一个反馈投票", announcements.first().title)
-        assertEquals(2, announcements.first().optionCount)
-    }
-
     private fun decodePin(json: String): DataHolder.Pin =
         ZhihuJson.decodeJson(ZhihuJson.json.parseToJsonElement(json).jsonObject)
 
@@ -126,7 +103,11 @@ class PinPollSupportTest {
           ],
           "excerpt_title": "给知乎++打个分吧",
           "content_html": "<p>给知乎++打个分吧</p>",
-          "bottom_poll": {
+          "topics": null,
+          "bottom_poll": ${if (pollId.isBlank()) {
+            "null"
+        } else {
+            """{
             "voting": {
               "id": "$pollId",
               "title": "$title",
@@ -153,7 +134,8 @@ class PinPollSupportTest {
                 }
               ]
             }
-          }
+          }"""
+        }}
         }
         """.trimIndent()
 }

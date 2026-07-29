@@ -128,6 +128,7 @@ import com.github.zly2006.zhihu.navigation.Article
 import com.github.zly2006.zhihu.navigation.ArticleType
 import com.github.zly2006.zhihu.navigation.LocalNavigator
 import com.github.zly2006.zhihu.navigation.Question
+import com.github.zly2006.zhihu.shared.data.DataHolder
 import com.github.zly2006.zhihu.shared.data.Person
 import com.github.zly2006.zhihu.shared.data.ZhihuPaging
 import com.github.zly2006.zhihu.shared.platform.PlatformBackHandler
@@ -394,6 +395,7 @@ fun ArticleActionsMenu(
     val openArticleInBrowser = rememberArticleBrowserOpener()
     val shareRuntime = rememberShareDialogRuntime()
     val coroutineScope = rememberCoroutineScope()
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     @Composable
     fun MenuActionButton(
@@ -571,6 +573,17 @@ fun ArticleActionsMenu(
         Spacer(modifier = Modifier.height(12.dp))
 
         MenuActionButton(
+            icon = Icons.Filled.Share,
+            text = "分享 Markdown 正文",
+            onClick = {
+                onDismissRequest()
+                shareRuntime.directShare(article, viewModel.convertToMarkdown())
+            },
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        MenuActionButton(
             icon = Icons.Outlined.DesktopWindows,
             text = "在电脑中打开（我计划使用浏览器插件实现，还在写，点击后请手动前往收藏夹打开）",
             onClick = {
@@ -586,7 +599,10 @@ fun ArticleActionsMenu(
     }
 
     if (showMenu) {
-        MyModalBottomSheet(onDismissRequest) {
+        MyModalBottomSheet(
+            onDismissRequest = onDismissRequest,
+            sheetState = sheetState,
+        ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -603,8 +619,7 @@ fun ArticleActionsMenu(
  *
  * 页面负责加载知乎回答或专栏文章，展示标题、作者、正文、附件视频、评论入口、分享/复制/朗读/浏览器打开等底部操作，
  * 正文主路径使用 Compose Markdown 渲染。回答页还承载同题回答切换手势和对应转场状态，因此改动时要同时关注
- * `answerSwitchMode`、`buttonSkipAnswer`、`autoHideArticleBottomBar`、`titleAutoHide`、`answerDoubleTapAction` 和
- * `ARTICLE_USE_WEBVIEW_PREFERENCE_KEY`。
+ * `answerSwitchMode`、`buttonSkipAnswer`、`autoHideArticleBottomBar`、`titleAutoHide` 和 `answerDoubleTapAction`。
  */
 @OptIn(
     ExperimentalMaterial3Api::class,
@@ -1589,64 +1604,33 @@ fun ArticleScreen(
                                 }
                                 Spacer(modifier = Modifier.height(16.dp))
                             }
-                            if (articleSettings.useWebView) {
-                                // WebView 正文渲染已经废弃，只保留为紧急回退路径；正文外 UI 不再为它单独分支。
-                                ArticleWebViewContent(
-                                    article = article,
-                                    html = viewModel.content,
-                                    title = viewModel.title,
-                                    scrollState = scrollState,
-                                    rememberedScrollY = viewModel.rememberedScrollY,
-                                    rememberedScrollYSync = viewModel.rememberedScrollYSync,
-                                    onRememberedScrollYSyncChange = { viewModel.rememberedScrollYSync = it },
-                                    onImageLoadFailed = { userMessages.showMessage("图片加载失败，请向开发者反馈") },
-                                    onDoubleTap = ::handleAnswerDoubleTap,
-                                )
-                                Column(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalAlignment = Alignment.End,
-                                ) {
-                                    if (!pinAnswerDate) {
-                                        DateTexts()
-                                    }
-                                    if (viewModel.ipInfo != null) {
-                                        Text(
-                                            "IP属地：${viewModel.ipInfo}",
-                                            color = Color.Gray,
-                                            fontSize = 11.sp,
-                                        )
-                                    }
-                                }
-                                Spacer(modifier = Modifier.height((16 + 36).dp))
-                            } else {
-                                RenderMarkdown(
-                                    html = viewModel.content,
-                                    modifier = Modifier.articleMarkdownSelectionWorkaround(),
-                                    scrollState = scrollState,
-                                    selectable = true,
-                                    enableScroll = false,
-                                    header = {},
-                                    footer = {
-                                        ArticleVideoAttachmentContent(viewModel.attachment)
-                                        Column(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalAlignment = Alignment.End,
-                                        ) {
-                                            if (!pinAnswerDate) {
-                                                DateTexts()
-                                            }
-                                            if (viewModel.ipInfo != null) {
-                                                Text(
-                                                    "IP属地：${viewModel.ipInfo}",
-                                                    color = Color.Gray,
-                                                    fontSize = 11.sp,
-                                                )
-                                            }
+                            RenderMarkdown(
+                                html = viewModel.content,
+                                modifier = Modifier.articleMarkdownSelectionWorkaround(),
+                                scrollState = scrollState,
+                                selectable = true,
+                                enableScroll = false,
+                                header = {},
+                                footer = {
+                                    ArticleVideoAttachmentContent(viewModel.attachment)
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalAlignment = Alignment.End,
+                                    ) {
+                                        if (!pinAnswerDate) {
+                                            DateTexts()
                                         }
-                                        Spacer(modifier = Modifier.height((16 + 36).dp))
-                                    },
-                                )
-                            }
+                                        if (viewModel.ipInfo != null) {
+                                            Text(
+                                                "IP属地：${viewModel.ipInfo}",
+                                                color = Color.Gray,
+                                                fontSize = 11.sp,
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height((16 + 36).dp))
+                                },
+                            )
                         }
                     }
                     // 状态栏渐变遮罩，仅 duo3 路径需要；主视觉路径不绘制。
@@ -1667,12 +1651,6 @@ fun ArticleScreen(
 
     val nav = sharedData?.navigator
     if (article.type == ArticleType.Answer && answerSwitchMode == "horizontal") {
-        ArticlePreviewPreloadEffect(nav?.nextAnswer, isNext = true, viewModel.title) {
-            userMessages.showMessage("图片加载失败，请向开发者反馈")
-        }
-        ArticlePreviewPreloadEffect(nav?.previousAnswer, isNext = false, viewModel.title) {
-            userMessages.showMessage("图片加载失败，请向开发者反馈")
-        }
     }
     val progressBarTopPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 64.dp
     val progressBarBottomPadding = WindowInsets.systemBars.asPaddingValues().calculateBottomPadding() + 96.dp
@@ -1823,6 +1801,8 @@ fun ArticleScreen(
         showComments = showComments,
         onDismiss = { showComments = false },
         content = article,
+        isZhPlusAuthorContent = article.type == ArticleType.Answer &&
+            viewModel.authorId == DataHolder.ZH_PLUS_AUTHOR_USER_ID,
     )
     VotersSheet(
         show = showVoters,

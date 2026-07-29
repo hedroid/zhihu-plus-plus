@@ -48,7 +48,6 @@ import com.github.zly2006.zhihu.ui.HOME_CREATE_FAB_TAG
 import com.github.zly2006.zhihu.ui.HOME_CREATE_MENU_TAG
 import com.github.zly2006.zhihu.ui.HOME_FEED_LIST_TAG
 import com.github.zly2006.zhihu.ui.HOME_NOTIFICATION_BUTTON_TAG
-import com.github.zly2006.zhihu.ui.HOME_REFRESH_BUTTON_TAG
 import com.github.zly2006.zhihu.ui.HOME_SEARCH_BUTTON_TAG
 import com.github.zly2006.zhihu.ui.HOME_TOP_ACTIONS_TAG
 import com.github.zly2006.zhihu.ui.HomeScreen
@@ -89,7 +88,6 @@ class HomeScreenInstrumentedTest {
          */
         val recordingNavigator = composeRule.launchHomeScreen(
             duo3HomeAccount = false,
-            showRefreshFab = false,
             displayItems = homeFeedFixtureItems(),
         )
 
@@ -117,7 +115,6 @@ class HomeScreenInstrumentedTest {
          */
         val recordingNavigator = composeRule.launchHomeScreen(
             duo3HomeAccount = true,
-            showRefreshFab = false,
             displayItems = homeFeedFixtureItems(),
         )
 
@@ -135,30 +132,6 @@ class HomeScreenInstrumentedTest {
     }
 
     @Test
-    fun refreshButton_staysPresentAfterClick_inSeededOfflineState() {
-        /*
-         * Expected behavior:
-         * 1. Enabling the floating refresh action through SharedPreferences must render a dedicated refresh FAB.
-         * 2. The test seeds non-empty feed items first so HomeScreen skips its initial auto-refresh path.
-         * 3. Tapping the refresh FAB should remain stable from the test perspective: the button stays present
-         *    and the interaction does not create any navigation side effects.
-         */
-        val recordingNavigator = composeRule.launchHomeScreen(
-            duo3HomeAccount = false,
-            showRefreshFab = true,
-            displayItems = homeFeedFixtureItems(),
-        )
-
-        composeRule.onNodeWithTag(HOME_REFRESH_BUTTON_TAG).assertIsDisplayed().assertHasClickAction()
-
-        composeRule.onNodeWithTag(HOME_REFRESH_BUTTON_TAG).performClick()
-
-        composeRule.onNodeWithTag(HOME_REFRESH_BUTTON_TAG).assertExists()
-        assertEquals(0, recordingNavigator.destinations.size)
-        assertEquals(0, recordingNavigator.backCount)
-    }
-
-    @Test
     fun createFab_opensActionMenu_andRoutesPinOnly() {
         /*
          * Expected behavior:
@@ -168,7 +141,6 @@ class HomeScreenInstrumentedTest {
          */
         val recordingNavigator = composeRule.launchHomeScreen(
             duo3HomeAccount = false,
-            showRefreshFab = false,
             displayItems = homeFeedFixtureItems(),
         )
 
@@ -208,7 +180,6 @@ class HomeScreenInstrumentedTest {
          */
         composeRule.launchHomeScreen(
             duo3HomeAccount = false,
-            showRefreshFab = false,
             displayItems = homeFeedFixtureItems(count = 30),
         )
 
@@ -225,16 +196,13 @@ class HomeScreenInstrumentedTest {
 
     private fun MainActivityComposeRule.launchHomeScreen(
         duo3HomeAccount: Boolean,
-        showRefreshFab: Boolean,
         useSeededAccountForNetwork: Boolean = false,
         displayItems: List<FeedDisplayItem>,
     ): RecordingNavigator {
         setScreenContent {}
         activity.getSharedPreferences(PREFERENCE_NAME, Context.MODE_PRIVATE).edit(commit = true) {
             putBoolean("duo3_home_account", duo3HomeAccount)
-            putBoolean("showRefreshFab", showRefreshFab)
             putBoolean("loginForRecommendation", useSeededAccountForNetwork)
-            putBoolean("survey_feedback_done", true)
             putBoolean("autoCheckUpdates", false)
             putString("recommendationMode", RecommendationMode.WEB.key)
         }

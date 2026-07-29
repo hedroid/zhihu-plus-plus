@@ -269,7 +269,6 @@ fun QuestionScreen(
                                         ) {
                                             Spacer(Modifier.height(10.dp))
                                             QuestionDetailContent(
-                                                questionId = question.questionId,
                                                 html = questionContent,
                                             )
                                         }

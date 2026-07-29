@@ -53,7 +53,7 @@ URL 解析集中在 `resolveContent()`。支持知乎问题、回答、文章、
 
 信息流卡片由 `FeedCard` 读取 `showFeedThumbnail`、`feedCardStyle`、`duo3_card_appearance`、`duo3_card_layout`、`duo3_card_large_title`。改这些 key 的语义时要同时查主页、关注、热榜、历史和搜索结果等复用卡片的页面。
 
-文章、问题详情和想法正文会根据 `ARTICLE_USE_WEBVIEW_PREFERENCE_KEY` 在 WebView 与 Compose Markdown 之间切换；该常量当前值是 `webviewRender`。WebView 正文渲染只作为废弃路径保留，不再接受新功能；阅读体验新能力只接入 Compose Markdown 路径。Compose Markdown 路径依赖 `RenderMarkdown` 和 `SegmentedText` 的字号、行高和段间距设置。
+文章、问题详情和想法正文统一使用 Compose Markdown 渲染。阅读体验新能力接入 `RenderMarkdown` 和 `SegmentedText` 的字号、行高和段间距设置。
 
 ## 设置项影响图
 
@@ -67,11 +67,7 @@ URL 解析集中在 `resolveContent()`。支持知乎问题、回答、文章、
 | `backgroundColorLight`, `backgroundColorDark` | 自定义背景颜色 | 明暗模式背景 | 按当前明暗模式写入不同 key |
 | `contentFontSize`, `contentLineHeight`, `contentBlockSpacing` | 字号、行高、段间距 | 正文字号/行高、分段文本样式和 Markdown 正文块间距 | 查 `SegmentedText` 和 Markdown 渲染路径 |
 | `showFeedThumbnail` | Feed 卡片缩略图 | 信息流卡片是否显示图 | 由复用 `FeedCard` 的页面读取 |
-| `showRefreshFab` | 刷新 FAB | 首页/列表可拖动刷新按钮显示 | 123Duo3 总开关会关闭它 |
 | `feedCardStyle` | 信息流样式 | `card` 或 `divider` | 影响 FeedCard 外层布局 |
-| `webviewRender` | 使用 WebView 显示文章 | 文章、问题详情、想法正文渲染路径 | 常量名是 `ARTICLE_USE_WEBVIEW_PREFERENCE_KEY` |
-| `webviewCustomFontName` | WebView 自定义字体 | WebView 注入字体 | 仅 WebView 路径 |
-| `webviewHardwareAcceleration` | WebView 硬件加速 | Android WebView layer type | 兼容性/性能相关 |
 | `titleAutoHide` | 自动隐藏回答标题 | 文章页顶部标题栏 | 查 `rememberArticleScreenSettingsState()` |
 | `autoHideArticleBottomBar` | 自动隐藏回答底部按钮 | 文章页底部操作栏 | 与滚动方向有关 |
 | `buttonSkipAnswer` | 显示跳转下一个回答按钮 | 文章页快速跳转按钮 | 123Duo3 总开关会关闭它 |
@@ -100,7 +96,6 @@ URL 解析集中在 `resolveContent()`。支持知乎问题、回答、文章、
 | `enableQualityFilter` | 质量过滤规则 | 按赞同数、关注数等指标过滤 | 查 content filter settings/runtime |
 | `enableContentFilter` | 智能内容过滤 | 过滤重复出现但未点击内容 | 关闭时相关子统计/开关应弱化 |
 | `filterFollowedUserContent` | 过滤已关注用户内容 | 是否过滤关注用户内容 | 仅智能过滤开启时可操作 |
-| `showBlockedFeedContent` | 展示屏蔽内容 | 主页信息流是否保留“已屏蔽”占位卡片 | 默认关闭，关闭时直接移除被过滤内容 |
 | `enableKeywordBlocking` | 关键词屏蔽 | 命中关键词时过滤 | 管理入口在 Blocklist |
 | `enableUserBlocking` | 用户屏蔽 | 命中用户时过滤 | Feed 卡片更多菜单可新增屏蔽 |
 | `enableTopicBlocking` | 主题屏蔽 | 命中主题时过滤 | 阈值项只在开启时显示 |
@@ -109,16 +104,12 @@ URL 解析集中在 `resolveContent()`。支持知乎问题、回答、文章、
 | `blockZhihuSchool` | 屏蔽知乎学堂内容 | 匹配 `d.zhihu.com` 或教育卡片 | 推广/课程过滤 |
 | `blockWeChatOfficialAccount` | 屏蔽微信公众号文章 | 匹配微信外链 | 外链过滤 |
 | `blockPaidContent` | 屏蔽知乎盐选付费内容 | 过滤会员付费内容 | mixed 推荐默认语义也提到盐选 |
-| `reverseBlock` | 反向屏蔽 | 只保留广告和付费内容 | 调试/整活性质，别当普通过滤开关 |
-
 ### 系统、通知和开发者
 
 | key/store | 入口 | 主要影响 | 注意 |
 | --- | --- | --- | --- |
 | `githubToken` | GitHub Token | 更新检查 API 限速 | 不要打印或提交真实 token |
 | `autoCheckUpdates` | 自动检查更新 | 启动后后台检查 | 通过 update runtime 存取 |
-| `checkNightlyUpdates` | Nightly 更新 | 是否检查每日构建 | Android updater 和 Desktop runtime 都读 |
-| `allowTelemetry` | 遥测统计 | 匿名使用统计 | 不影响核心功能 |
 | `continuousUsageReminderIntervalMinutes` | 防沉迷提醒 | 连续使用提醒间隔 | 0 表示关闭 |
 | `developer` | 开发者模式 | 账号页显示开发者选项 | 账号页点击版本 5 次开启 |
 | `enableScrollEndHaptic` | 开发者选项: 滚动到底震动 | 滚动边界反馈行为开关 | 改前查具体 overScroll 使用点 |
@@ -128,14 +119,13 @@ URL 解析集中在 `resolveContent()`。支持知乎问题、回答、文章、
 
 ## 123Duo3 UI/UX 开关
 
-`duo3_all` 是批量开关。开启时会写入 `duo3_home_account`、`duo3_nav_style`、`duo3_card_appearance`、`duo3_card_layout`、`duo3_article_bar`、`duo3_article_actions`，并关闭 `showRefreshFab` 和 `buttonSkipAnswer`。
+`duo3_all` 是批量开关。开启时会写入 `duo3_home_account`、`duo3_card_appearance`、`duo3_card_layout`、`duo3_article_bar`、`duo3_article_actions`，并关闭 `buttonSkipAnswer`。底部导航栏统一使用 Material 样式，不再提供单独开关。
 
 各子开关影响:
 
 | key | 影响 |
 | --- | --- |
 | `duo3_home_account` | 主页头像承接账号入口，底栏账号项规则变化，账号页可能显示历史快捷方式 |
-| `duo3_nav_style` | 底栏高度、标签显示、图标和选中样式变化 |
 | `duo3_card_appearance` | Feed 卡片圆角、背景和阴影变化 |
 | `duo3_card_layout` | Feed 卡片作者、图片、摘要行数和字体排版变化 |
 | `duo3_card_large_title` | `duo3_card_layout` 开启后控制标题字号 |

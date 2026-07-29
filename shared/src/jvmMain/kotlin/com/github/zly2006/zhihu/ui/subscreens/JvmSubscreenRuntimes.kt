@@ -104,7 +104,6 @@ private suspend fun checkDesktopUpdate(
             if (skippedVersion != versionString) {
                 state.value = SystemUpdateState.UpdateAvailable(
                     version = versionString,
-                    isNightly = false,
                     releaseNotes = releaseNotes,
                     downloadUrl = latestResponse.htmlUrl ?: latestResponse.assets
                         .firstOrNull()

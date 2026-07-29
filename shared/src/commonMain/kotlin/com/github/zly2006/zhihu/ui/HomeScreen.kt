@@ -52,15 +52,12 @@ import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowCircleUp
-import androidx.compose.material.icons.filled.CopyAll
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MarkUnreadChatAlt
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -109,8 +106,9 @@ import com.github.zly2006.zhihu.shared.ui.topLevelReselectAction
 import com.github.zly2006.zhihu.ui.components.AnnouncementCard
 import com.github.zly2006.zhihu.ui.components.AnnouncementCardDefaults
 import com.github.zly2006.zhihu.ui.components.BlockByKeywordsDialog
-import com.github.zly2006.zhihu.ui.components.BlockUserConfirmDialog
-import com.github.zly2006.zhihu.ui.components.DraggableRefreshButton
+import com.github.zly2006.zhihu.ui.components.FeedAuthorBlockConfirmDialog
+import com.github.zly2006.zhihu.ui.components.FeedAuthorBlockRequest
+import com.github.zly2006.zhihu.ui.components.FeedAuthorBlockType
 import com.github.zly2006.zhihu.ui.components.FeedCard
 import com.github.zly2006.zhihu.ui.components.FeedPullToRefresh
 import com.github.zly2006.zhihu.ui.components.MyModalBottomSheet
@@ -126,10 +124,8 @@ import com.github.zly2006.zhihu.viewmodel.local.LocalHomeFeedViewModel
 import com.github.zly2006.zhihu.viewmodel.rememberPaginationEnvironment
 import com.github.zly2006.zhihu.viewmodel.za.AndroidHomeFeedViewModel
 import com.github.zly2006.zhihu.viewmodel.za.MixedHomeFeedViewModel
-import kotlinx.serialization.json.Json
 
 const val PREFERENCE_NAME = "com.github.zly2006.zhihu_preferences"
-const val ARTICLE_USE_WEBVIEW_PREFERENCE_KEY = "webviewRender"
 const val HOME_TOP_ACTIONS_TAG = "home_top_actions"
 const val HOME_SEARCH_BUTTON_TAG = "home_search_button"
 const val HOME_CREATE_FAB_TAG = "home_create_fab"
@@ -140,14 +136,12 @@ const val HOME_WRITE_PIN_BUTTON_TAG = "home_write_pin_button"
 const val HOME_NOTIFICATION_BUTTON_TAG = "home_notification_button"
 const val HOME_ACCOUNT_BUTTON_TAG = "home_account_button"
 const val HOME_FEED_LIST_TAG = "home_feed_list"
-const val HOME_REFRESH_BUTTON_TAG = "home_refresh_button"
 
 /**
  * 首页信息流页面。
  *
- * 页面顶部承载搜索、通知、账号入口等高频操作，主体是可分页的推荐信息流，底部可按设置显示可拖动刷新 FAB。
- * 设计上首页同时响应推荐算法、Duo3 账号入口迁移、更新公告和未读通知等状态，因此 UI 改动时要同时检查
- * `recommendationMode`、`duo3_home_account`、`showRefreshFab` 和账号面板相关路径。
+ * 页面顶部承载搜索、通知、账号入口等高频操作，主体是可分页的推荐信息流。
+ * 设计上首页同时响应推荐算法、Duo3 账号入口迁移、更新公告和未读通知等状态。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -162,7 +156,7 @@ fun HomeScreen(
     val userMessages = rememberUserMessageSink()
 
     val duo3HomeAccount = settings.getBoolean("duo3_home_account", false)
-    val showRefreshFab = settings.getBoolean("showRefreshFab", true)
+    val autoRefreshOnStartup = settings.getBoolean(AUTO_REFRESH_HOME_ON_STARTUP_PREFERENCE_KEY, true)
     val showUnreadBadge = notificationSettings.getUnreadBadgeEnabled()
     var showAccountBottomSheet by remember { mutableStateOf(false) }
     var showCreateMenu by remember { mutableStateOf(false) }
@@ -177,10 +171,10 @@ fun HomeScreen(
         RecommendationMode.entries.find {
             it.key == settings.getString("recommendationMode", RecommendationMode.MIXED.key)
         } ?: RecommendationMode.MIXED
+    val startupCache = rememberHomeFeedStartupCache(currentRecommendationMode)
 
     val account = rememberHomeAccountState()
     val updateAnnouncement = rememberHomeUpdateAnnouncement()
-    val isDebuggable = rememberHomeIsDebuggable()
     val requestLogin = rememberHomeLoginRequester()
     val feedBlockActions = rememberFeedBlockActions()
     val viewModel: BaseFeedViewModel = when (currentRecommendationMode) {
@@ -222,15 +216,31 @@ fun HomeScreen(
         }
     }
 
+    val latestLoadedDisplayItems = viewModel.latestLoadedDisplayItems.value
+    LaunchedEffect(latestLoadedDisplayItems) {
+        if (latestLoadedDisplayItems.isNotEmpty()) {
+            startupCache.writeHomeFeedStartupCache(latestLoadedDisplayItems)
+        }
+    }
+
     // 初始加载
-    LaunchedEffect(currentRecommendationMode, account.isLoggedIn) {
+    LaunchedEffect(currentRecommendationMode, account.isLoggedIn, autoRefreshOnStartup) {
         if (!account.isLoggedIn &&
             settings.getBoolean("loginForRecommendation", true)
         ) {
             requestLogin()
         } else if (viewModel.displayItems.isEmpty()) {
-            // 只在第一次加载时刷新，这样可以避免在返回时刷新
-            viewModel.refresh(paginationEnvironment)
+            val cachedItems = if (autoRefreshOnStartup) {
+                emptyList()
+            } else {
+                startupCache.readHomeFeedStartupCache()
+            }
+            if (viewModel.displayItems.isEmpty() && cachedItems.isNotEmpty()) {
+                viewModel.addDisplayItems(cachedItems)
+            } else if (viewModel.displayItems.isEmpty()) {
+                // 只在第一次加载时刷新，这样可以避免在返回时刷新
+                viewModel.refresh(paginationEnvironment)
+            }
         }
     }
 
@@ -241,9 +251,7 @@ fun HomeScreen(
         }
     }
 
-    // 屏蔽用户确认对话框
-    var showBlockUserDialog by remember { mutableStateOf(false) }
-    var userToBlock by remember { mutableStateOf<Pair<String, String>?>(null) } // 二元组内容为 userId 和 userName。
+    var feedAuthorBlockRequest by remember { mutableStateOf<FeedAuthorBlockRequest?>(null) }
 
     // 按关键词屏蔽对话框
     var showBlockByKeywordsDialog by remember { mutableStateOf(false) }
@@ -451,7 +459,7 @@ fun HomeScreen(
 
                             AnnouncementCard(
                                 visible = availableUpdate != null && dismissedUpdateVersion != availableUpdate.version,
-                                title = "发现新版本：${availableUpdate?.version}${if (availableUpdate?.isNightly == true) " (Nightly)" else ""}",
+                                title = "发现新版本：${availableUpdate?.version}",
                                 leadingIcon = { Icon(Icons.Default.ArrowCircleUp, contentDescription = null) },
                                 accept = { Text("查看更新") },
                                 onAccept = {
@@ -476,8 +484,20 @@ fun HomeScreen(
                         },
                         onBlockUser = { feedItem ->
                             feedBlockActions.handleBlockUser(viewModel, feedItem) { authorInfo ->
-                                userToBlock = authorInfo
-                                showBlockUserDialog = true
+                                feedAuthorBlockRequest = FeedAuthorBlockRequest(
+                                    type = FeedAuthorBlockType.CONTENT_AUTHOR,
+                                    userId = authorInfo.first,
+                                    userName = authorInfo.second,
+                                )
+                            }
+                        },
+                        onBlockQuestionAuthor = { feedItem ->
+                            feedBlockActions.handleBlockQuestionAuthor(viewModel, feedItem) { authorInfo ->
+                                feedAuthorBlockRequest = FeedAuthorBlockRequest(
+                                    type = FeedAuthorBlockType.QUESTION_AUTHOR,
+                                    userId = authorInfo.first,
+                                    userName = authorInfo.second,
+                                )
                             }
                         },
                         onBlockByKeywords = { feedItem ->
@@ -495,36 +515,11 @@ fun HomeScreen(
                         if (feed != null) {
 //                            DataHolder.putFeed(feed)
                             (viewModel as? HomeFeedInteractionViewModel)?.onUiContentClick(paginationEnvironment, feed, item)
-                        } else if (item.localContentId != null) {
+                        } else {
                             localHomeViewModel?.onLocalItemOpened(item)
                         }
                         if (destination != null) {
                             navigator.onNavigate(destination)
-                        }
-                    }
-                }
-
-                if (showRefreshFab) {
-                    if (isDebuggable) {
-                        DraggableRefreshButton(
-                            onClick = {
-                                val data = Json.encodeToString(viewModel.debugData)
-                                paginationEnvironment.setPlainTextClipboard("data", data)
-                                userMessages.showShortMessage("已复制调试数据")
-                            },
-                            preferenceName = "copyAll",
-                        ) {
-                            Icon(Icons.Default.CopyAll, contentDescription = "复制")
-                        }
-                    }
-                    DraggableRefreshButton(
-                        modifier = Modifier.testTag(HOME_REFRESH_BUTTON_TAG),
-                        onClick = { viewModel.refresh(paginationEnvironment) },
-                    ) {
-                        if (viewModel.isLoading) {
-                            CircularProgressIndicator(modifier = Modifier.size(30.dp))
-                        } else {
-                            Icon(Icons.Default.Refresh, contentDescription = "刷新")
                         }
                     }
                 }
@@ -644,19 +639,13 @@ fun HomeScreen(
         }
     }
 
-    // 屏蔽用户确认对话框
-    BlockUserConfirmDialog(
-        showDialog = showBlockUserDialog,
-        userToBlock = userToBlock,
+    FeedAuthorBlockConfirmDialog(
+        request = feedAuthorBlockRequest,
         displayItems = viewModel.displayItems,
-        onDismiss = {
-            showBlockUserDialog = false
-            userToBlock = null
-        },
+        onDismiss = { feedAuthorBlockRequest = null },
         onConfirm = {
             viewModel.refresh(paginationEnvironment)
-            showBlockUserDialog = false
-            userToBlock = null
+            feedAuthorBlockRequest = null
         },
     )
 

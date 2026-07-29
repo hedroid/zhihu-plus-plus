@@ -46,10 +46,8 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material.icons.filled.Newspaper
-import androidx.compose.material.icons.filled.PersonAddAlt1
 import androidx.compose.material.icons.filled.Whatshot
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -69,16 +67,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -120,7 +115,9 @@ import com.github.zly2006.zhihu.ui.subscreens.BlockedFeedHistoryScreen
 import com.github.zly2006.zhihu.ui.subscreens.ColorSchemeScreen
 import com.github.zly2006.zhihu.ui.subscreens.ContentFilterSettingsScreen
 import com.github.zly2006.zhihu.ui.subscreens.DeveloperSettingsScreen
+import com.github.zly2006.zhihu.ui.subscreens.IdentityManagementScreen
 import com.github.zly2006.zhihu.ui.subscreens.OpenSourceLicensesScreen
+import com.github.zly2006.zhihu.ui.subscreens.ProjectLicenseScreen
 import com.github.zly2006.zhihu.ui.subscreens.SystemAndUpdateSettingsScreen
 import kotlinx.coroutines.launch
 import kotlin.reflect.KClass
@@ -187,7 +184,6 @@ fun ZhihuMain(
 ) {
     val bottomPadding = ScaffoldDefaults.contentWindowInsets.asPaddingValues().calculateBottomPadding()
     val duo3HomeAccount = preferenceState.duo3HomeAccount
-    val duo3NavStyle = preferenceState.duo3NavStyle
     val tapToScrollToTopEnabled = preferenceState.tapToScrollToTopEnabled
     val autoHideBottomBar = preferenceState.autoHideBottomBar
     val selectedBottomBarItemKeys = preferenceState.selectedBottomBarItemKeys
@@ -223,7 +219,7 @@ fun ZhihuMain(
 
     val allBottomBarItems = listOf(
         Triple(Home, "主页", Icons.Filled.Home),
-        Triple(Follow, "关注", if (duo3NavStyle) Icons.Filled.Group else Icons.Filled.PersonAddAlt1),
+        Triple(Follow, "关注", Icons.Filled.Group),
         Triple(HotList, "热榜", Icons.Filled.Whatshot),
         Triple(Daily, "日报", Icons.Filled.Newspaper),
         Triple(OnlineHistory, "历史", Icons.Filled.History),
@@ -325,7 +321,7 @@ fun ZhihuMain(
                     NavigationBar(
                         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                         modifier = Modifier.height(
-                            (if (duo3NavStyle) 64.dp else 56.dp) + bottomPadding,
+                            64.dp + bottomPadding,
                         ),
                     ) {
                         @Composable
@@ -344,41 +340,22 @@ fun ZhihuMain(
                                         scrollToTopTrigger++
                                     }
                                 },
-                                label = {
-                                    if (duo3NavStyle) {
-                                        Text(label)
-                                    } else {
-                                        Text(
-                                            label,
-                                            style = TextStyle(
-                                                fontSize = 9.sp,
-                                                color = LocalContentColor.current.copy(alpha = 0.6f),
-                                            ),
-                                        )
-                                    }
-                                },
-                                alwaysShowLabel = duo3NavStyle,
-                                colors = if (duo3NavStyle) {
-                                    if (!isDarkTheme) {
-                                        NavigationBarItemDefaults.colors().copy(
-                                            selectedIndicatorColor =
-                                                MaterialTheme.colorScheme.secondaryContainer
-                                                    .copy(alpha = 0.92f)
-                                                    .compositeOver(MaterialTheme.colorScheme.secondary),
-                                        )
-                                    } else {
-                                        NavigationBarItemDefaults.colors()
-                                    }
-                                } else {
-                                    NavigationBarItemDefaults.colors(
-                                        selectedIconColor = Color(0xff66ccff),
-                                        indicatorColor = Color.Transparent,
+                                label = { Text(label) },
+                                alwaysShowLabel = true,
+                                colors = if (!isDarkTheme) {
+                                    NavigationBarItemDefaults.colors().copy(
+                                        selectedIndicatorColor =
+                                            MaterialTheme.colorScheme.secondaryContainer
+                                                .copy(alpha = 0.92f)
+                                                .compositeOver(MaterialTheme.colorScheme.secondary),
                                     )
+                                } else {
+                                    NavigationBarItemDefaults.colors()
                                 },
                                 icon = {
                                     Icon(icon, contentDescription = label)
                                 },
-                                modifier = (if (duo3NavStyle) Modifier.padding(top = 4.dp) else Modifier).testTag(tag),
+                                modifier = Modifier.padding(top = 4.dp).testTag(tag),
                             )
                         }
 
@@ -535,8 +512,14 @@ fun ZhihuMain(
                     val args = navEntry.toRoute<Account.RecommendSettings>()
                     ContentFilterSettingsScreen(args.setting)
                 }
+                composable<Account.IdentityManagement> {
+                    IdentityManagementScreen()
+                }
                 composable<Account.SystemAndUpdateSettings> {
                     SystemAndUpdateSettingsScreen()
+                }
+                composable<Account.ProjectLicense> {
+                    ProjectLicenseScreen()
                 }
                 composable<Account.OpenSourceLicenses> {
                     OpenSourceLicensesScreen()

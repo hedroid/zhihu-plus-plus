@@ -86,7 +86,6 @@ sealed interface SystemUpdateState {
 
     data class UpdateAvailable(
         val version: String,
-        val isNightly: Boolean,
         val releaseNotes: String?,
         val downloadUrl: String,
         val cnDownloadUrl: String?,

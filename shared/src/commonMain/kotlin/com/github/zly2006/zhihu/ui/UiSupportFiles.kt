@@ -17,7 +17,6 @@
 
 package com.github.zly2006.zhihu.ui
 
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.text.InlineTextContent
@@ -42,6 +41,8 @@ import com.github.zly2006.zhihu.navigation.Pin
 import com.github.zly2006.zhihu.navigation.Question
 import com.github.zly2006.zhihu.navigation.TopLevelDestination
 import com.github.zly2006.zhihu.shared.data.DataHolder
+import com.github.zly2006.zhihu.shared.data.FeedDisplayItem
+import com.github.zly2006.zhihu.shared.data.RecommendationMode
 import com.github.zly2006.zhihu.shared.filter.ContentOpenFrom
 import com.github.zly2006.zhihu.shared.platform.SettingsStore
 import com.github.zly2006.zhihu.shared.platform.UserMessageSink
@@ -110,39 +111,23 @@ internal fun JsonObject?.booleanCompat(vararg keys: String): Boolean {
     } ?: false
 }
 
-/**
- * 想法正文的 HTML 渲染入口。
- *
- * 根据当前 WebView 设置选择平台 WebView 或 Compose Markdown 渲染。这样想法页、问题详情和文章页可以共享同一条“正文渲染模式”
- * 语义，避免用户打开 WebView 后只有部分内容类型生效。
- */
+/** 想法正文统一使用 Compose Markdown 渲染。 */
 @Composable
 fun PinHtmlContent(html: String) {
-    if (rememberSettingsStore().getBoolean(ARTICLE_USE_WEBVIEW_PREFERENCE_KEY, false) &&
-        supportsZhihuHtmlWebView()
-    ) {
-        ZhihuHtmlWebViewContent(html)
-    } else {
-        Spacer(Modifier.height(10.dp))
-        RenderMarkdown(
-            html = html,
-            modifier = Modifier.questionSelectionWorkaround(),
-            selectable = true,
-            enableScroll = false,
-        )
-    }
+    Spacer(Modifier.height(10.dp))
+    RenderMarkdown(
+        html = html,
+        modifier = Modifier.questionSelectionWorkaround(),
+        selectable = true,
+        enableScroll = false,
+    )
 }
-
-expect fun supportsZhihuHtmlWebView(): Boolean
-
-@Composable
-expect fun ZhihuHtmlWebViewContent(html: String)
 
 /**
  * 文章页 Compose UI 使用的运行时设置视图。
  *
  * 这些值保存在可变 state 中，是因为大多数阅读设置都应该在用户已经打开文章时即时生效：标题/底栏自动隐藏、回答切换、
- * WebView 渲染和双击正文动作都不应要求重建页面。持久化仍由 [SettingsStore] 负责；这个类只镜像会影响当前 UI 的值，
+ * 双击正文动作也不应要求重建页面。持久化仍由 [SettingsStore] 负责；这个类只镜像会影响当前 UI 的值，
  * 并暴露文章页内弹窗会用到的显式保存入口。
  */
 class ArticleScreenSettingsState(
@@ -155,7 +140,6 @@ class ArticleScreenSettingsState(
     buttonSkipAnswer: Boolean,
     autoHideSkipAnswerButton: Boolean,
     answerDoubleTapAction: AnswerDoubleTapAction,
-    useWebView: Boolean,
     private val saveAnswerDoubleTapActionPreference: (AnswerDoubleTapAction) -> Unit,
 ) {
     var isTitleAutoHide by mutableStateOf(isTitleAutoHide)
@@ -167,7 +151,6 @@ class ArticleScreenSettingsState(
     var buttonSkipAnswer by mutableStateOf(buttonSkipAnswer)
     var autoHideSkipAnswerButton by mutableStateOf(autoHideSkipAnswerButton)
     var answerDoubleTapAction by mutableStateOf(answerDoubleTapAction)
-    var useWebView by mutableStateOf(useWebView)
 
     fun saveAnswerDoubleTapAction(action: AnswerDoubleTapAction) {
         answerDoubleTapAction = action
@@ -200,7 +183,6 @@ fun rememberArticleScreenSettingsState(): ArticleScreenSettingsState {
             buttonSkipAnswer = settings.getBoolean("buttonSkipAnswer", true),
             autoHideSkipAnswerButton = settings.getBoolean("autoHideSkipAnswerButton", true),
             answerDoubleTapAction = settings.answerDoubleTapAction(),
-            useWebView = settings.getBoolean(ARTICLE_USE_WEBVIEW_PREFERENCE_KEY, false),
             saveAnswerDoubleTapActionPreference = { action ->
                 settings.putString(
                     ANSWER_DOUBLE_TAP_ACTION_PREFERENCE_KEY,
@@ -232,7 +214,6 @@ fun rememberArticleScreenSettingsState(): ArticleScreenSettingsState {
 
                 "pinAnswerDate" -> state.pinAnswerDate = settings.getBoolean(key, false)
                 "duo3_article_actions" -> state.useDuo3ArticleActions = settings.getBoolean(key, false)
-                ARTICLE_USE_WEBVIEW_PREFERENCE_KEY -> state.useWebView = settings.getBoolean(key, false)
                 ANSWER_DOUBLE_TAP_ACTION_PREFERENCE_KEY -> {
                     state.answerDoubleTapAction = settings.answerDoubleTapAction()
                 }
@@ -255,64 +236,19 @@ private fun SettingsStore.answerDoubleTapAction(): AnswerDoubleTapAction =
 @Composable
 expect fun rememberArticleHost(): ArticleHost?
 
-@Composable
-expect fun ArticlePreviewPreloadEffect(
-    cached: CachedAnswerContent?,
-    isNext: Boolean,
-    title: String,
-    onImageLoadFailed: () -> Unit,
-)
-
-@Composable
-expect fun ArticleWebViewContent(
-    article: Article,
-    html: String,
-    title: String,
-    scrollState: ScrollState,
-    rememberedScrollY: Int,
-    rememberedScrollYSync: Boolean,
-    onRememberedScrollYSyncChange: (Boolean) -> Unit,
-    onImageLoadFailed: () -> Unit,
-    onDoubleTap: () -> Unit,
-)
-
 /** 过滤部分设备文本选择菜单中的非预期系统项。 */
 expect fun Modifier.articleMarkdownSelectionWorkaround(): Modifier
 
-/**
- * 问题描述正文的渲染入口。
- *
- * 与文章和想法一致，优先遵循用户选择的 WebView/Markdown 渲染模式；当前平台不支持问题详情 WebView 时回落到 Compose Markdown。
- */
+/** 问题描述正文统一使用 Compose Markdown 渲染。 */
 @Composable
-fun QuestionDetailContent(
-    questionId: Long,
-    html: String,
-) {
-    if (rememberSettingsStore().getBoolean(ARTICLE_USE_WEBVIEW_PREFERENCE_KEY, false) &&
-        supportsQuestionDetailWebView()
-    ) {
-        QuestionDetailWebViewContent(
-            questionId = questionId,
-            html = html,
-        )
-    } else {
-        RenderMarkdown(
-            html = html,
-            modifier = Modifier.questionSelectionWorkaround(),
-            selectable = true,
-            enableScroll = false,
-        )
-    }
+fun QuestionDetailContent(html: String) {
+    RenderMarkdown(
+        html = html,
+        modifier = Modifier.questionSelectionWorkaround(),
+        selectable = true,
+        enableScroll = false,
+    )
 }
-
-expect fun supportsQuestionDetailWebView(): Boolean
-
-@Composable
-expect fun QuestionDetailWebViewContent(
-    questionId: Long,
-    html: String,
-)
 
 @Composable
 expect fun rememberArticleTtsState(): TtsState
@@ -436,7 +372,6 @@ enum class TtsState(
  */
 data class ZhihuMainPreferenceSnapshot(
     val duo3HomeAccount: Boolean,
-    val duo3NavStyle: Boolean,
     val tapToScrollToTopEnabled: Boolean,
     val autoHideBottomBar: Boolean,
     val selectedBottomBarItemKeys: List<String>,
@@ -455,7 +390,6 @@ class ZhihuMainPreferenceState(
     private var snapshot by mutableStateOf(readSnapshot())
 
     val duo3HomeAccount: Boolean get() = snapshot.duo3HomeAccount
-    val duo3NavStyle: Boolean get() = snapshot.duo3NavStyle
     val tapToScrollToTopEnabled: Boolean get() = snapshot.tapToScrollToTopEnabled
     val autoHideBottomBar: Boolean get() = snapshot.autoHideBottomBar
     val selectedBottomBarItemKeys: List<String> get() = snapshot.selectedBottomBarItemKeys
@@ -490,6 +424,7 @@ data class AccountSettingsAccountState(
     val avatarUrl: String? = null,
     val id: String = "",
     val urlToken: String? = null,
+    val identityManagementSupported: Boolean = false,
 )
 
 @Composable
@@ -540,17 +475,21 @@ data class HomeAccountState(
 
 data class HomeUpdateAnnouncement(
     val version: String,
-    val isNightly: Boolean,
 )
 
 @Composable
 expect fun rememberHomeAccountState(): HomeAccountState
 
-@Composable
-expect fun rememberHomeUpdateAnnouncement(): HomeUpdateAnnouncement?
+data class HomeFeedStartupCache(
+    val readHomeFeedStartupCache: suspend () -> List<FeedDisplayItem>,
+    val writeHomeFeedStartupCache: suspend (List<FeedDisplayItem>) -> Unit,
+)
 
 @Composable
-expect fun rememberHomeInstalledAtLeastThreeHours(): Boolean
+expect fun rememberHomeFeedStartupCache(recommendationMode: RecommendationMode): HomeFeedStartupCache
+
+@Composable
+expect fun rememberHomeUpdateAnnouncement(): HomeUpdateAnnouncement?
 
 @Composable
 expect fun rememberHomeIsDebuggable(): Boolean

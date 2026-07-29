@@ -17,15 +17,12 @@
 
 package com.github.zly2006.zhihu
 
-import android.content.Context
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
-import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.lifecycle.ViewModelProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -36,9 +33,7 @@ import com.github.zly2006.zhihu.test.performVerticalSwipeCycle
 import com.github.zly2006.zhihu.test.resetAppPreferences
 import com.github.zly2006.zhihu.test.setScreenContent
 import com.github.zly2006.zhihu.ui.HOT_LIST_LIST_TAG
-import com.github.zly2006.zhihu.ui.HOT_LIST_REFRESH_BUTTON_TAG
 import com.github.zly2006.zhihu.ui.HotListScreen
-import com.github.zly2006.zhihu.ui.PREFERENCE_NAME
 import com.github.zly2006.zhihu.viewmodel.feed.HotListViewModel
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -102,44 +97,16 @@ class HotListScreenInstrumentedTest {
     }
 
     @Test
-    fun refreshFabVisibilityAndClicksStayStableOffline() {
-        // Expected behavior:
-        // 1. The refresh FAB is visible by default on top of a locally seeded list.
-        // 2. Clicking it must route through the injected test callback so the test can prove click
-        //    stability without invoking the real network-backed refresh implementation.
-        // 3. Repeated clicks must preserve the seeded rows and never create navigation side effects.
-        val refreshClicks = AtomicInteger(0)
-        val navigator = setHotListScreen(
-            onTestRefreshClick = { refreshClicks.incrementAndGet() },
-        )
-
-        composeRule.onNodeWithTag(HOT_LIST_REFRESH_BUTTON_TAG).assertIsDisplayed()
-        composeRule.onNodeWithTag(HOT_LIST_REFRESH_BUTTON_TAG).performClick()
-        composeRule.onNodeWithTag(HOT_LIST_REFRESH_BUTTON_TAG).performClick()
-        composeRule.onNodeWithText(seedTitle(1)).assertIsDisplayed()
-
-        composeRule.runOnIdle {
-            assertEquals(2, refreshClicks.get())
-            assertEquals(0, navigator.destinations.size)
-            assertEquals(0, navigator.backCount)
-            assertEquals(12, hotListViewModel.displayItems.size)
-        }
-    }
-
-    @Test
-    fun hotListRowsRemainAvatarFreeAndFabCanBeHiddenForDeterministicTesting() {
+    fun hotListRowsRemainAvatarFreeForDeterministicTesting() {
         // Expected behavior:
         // 1. HotListViewModel removes author/avatar data, so seeded rows should never expose avatar
         //    semantics even after the list is composed.
-        // 2. Disabling the preference before composition must remove the FAB entirely while keeping
-        //    the underlying list content stable and usable.
-        // 3. This visibility change is purely presentational and must not generate navigation events.
-        setShowRefreshFabPreference(false)
+        // 2. The underlying list content must remain stable and usable.
+        // 3. Rendering the list must not generate navigation events.
         val navigator = setHotListScreen(itemCount = 10)
 
         composeRule.onNodeWithTag(HOT_LIST_LIST_TAG).assertIsDisplayed()
         composeRule.onNodeWithText(seedTitle(1)).assertIsDisplayed()
-        composeRule.onAllNodesWithTag(HOT_LIST_REFRESH_BUTTON_TAG).assertCountEquals(0)
         composeRule.onAllNodesWithContentDescription("Avatar").assertCountEquals(0)
 
         composeRule.runOnIdle {
@@ -186,15 +153,6 @@ class HotListScreenInstrumentedTest {
         composeRule.activity.runOnUiThread {
             hotListViewModel.displayItems.clear()
         }
-        composeRule.waitForIdle()
-    }
-
-    private fun setShowRefreshFabPreference(enabled: Boolean) {
-        composeRule.activity
-            .getSharedPreferences(PREFERENCE_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putBoolean("showRefreshFab", enabled)
-            .commit()
         composeRule.waitForIdle()
     }
 

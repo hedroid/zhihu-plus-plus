@@ -51,6 +51,7 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SwitchAccount
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -114,6 +115,8 @@ const val ACCOUNT_SETTINGS_RECOMMEND_TAG = "accountSettings.recommend"
 const val ACCOUNT_SETTINGS_SYSTEM_TAG = "accountSettings.system"
 const val ACCOUNT_SETTINGS_DEVELOPER_TAG = "accountSettings.developer"
 const val ACCOUNT_SETTINGS_LICENSES_TAG = "accountSettings.licenses"
+const val ACCOUNT_SETTINGS_PROJECT_LICENSE_TAG = "accountSettings.projectLicense"
+const val ACCOUNT_SETTINGS_IDENTITY_MANAGEMENT_TAG = "accountSettings.identityManagement"
 
 /**
  * 账号与设置入口页。
@@ -423,6 +426,16 @@ fun AccountSettingScreen(
             }
 
             SettingItemGroup {
+                if (data.login && data.identityManagementSupported) {
+                    SettingItem(
+                        title = { Text("身份管理") },
+                        description = { Text("创建马甲号或切换当前账号") },
+                        icon = { Icon(Icons.Default.SwitchAccount, null) },
+                        modifier = Modifier.testTag(ACCOUNT_SETTINGS_IDENTITY_MANAGEMENT_TAG),
+                        onClick = { navigator.onNavigate(Account.IdentityManagement) },
+                    )
+                }
+
                 SettingItem(
                     title = { Text("外观与阅读体验") },
                     description = { Text("主题颜色、字体大小等") },
@@ -461,8 +474,7 @@ fun AccountSettingScreen(
             LaunchedEffect(updateState) {
                 if (updateState is SystemUpdateState.UpdateAvailable) {
                     val state = updateState as SystemUpdateState.UpdateAvailable
-                    val versionType = if (state.isNightly) "Nightly版本" else "正式版本"
-                    userMessages.showShortMessage("发现新$versionType ${state.version}")
+                    userMessages.showShortMessage("发现新版本 ${state.version}")
                 }
                 if (updateState is SystemUpdateState.Error) {
                     userMessages.showLongMessage("检查更新失败: ${(updateState as SystemUpdateState.Error).message}")
@@ -521,16 +533,8 @@ fun AccountSettingScreen(
                     title = { Text("项目协议") },
                     description = { Text("AGPL-3.0-only") },
                     icon = { Icon(painterResource(Res.drawable.ic_license_24dp), null) },
-                    onClick = {
-                        openSystemUrl("https://github.com/hedroid/zhihu-plus-plus/blob/master/LICENSE")
-                    },
-                    endAction = {
-                        Icon(
-                            Icons.Default.ArrowOutward,
-                            null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    },
+                    modifier = Modifier.testTag(ACCOUNT_SETTINGS_PROJECT_LICENSE_TAG),
+                    onClick = { navigator.onNavigate(Account.ProjectLicense) },
                 )
                 SettingItem(
                     title = { Text("开源许可") },
