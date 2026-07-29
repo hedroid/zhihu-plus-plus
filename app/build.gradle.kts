@@ -88,6 +88,7 @@ android {
     buildTypes {
         val gitHash = gitHash(rootProject.projectDir)
         debug {
+            applicationIdSuffix = ".debug"
             buildConfigField("String", "GIT_HASH", "\"$gitHash\"")
             manifestPlaceholders["zhihuBuildType"] = "debug"
             manifestPlaceholders["zhihuGitHash"] = gitHash
