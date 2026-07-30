@@ -71,17 +71,20 @@ fun HttpResponse.dumpCurlRequest(): String {
     return sb.toString()
 }
 
-fun formatCompactCount(count: Int): String = when {
-    count >= 10_000 -> {
-        if (count % 10_000 == 0) {
-            "${count / 10_000} 万"
-        } else {
-            val roundedTenths = ((count / 10_000.0) * 10).roundToInt() / 10.0
-            "$roundedTenths 万"
-        }
+fun formatCompactCount(count: Int): String {
+    if (count < 1_000) {
+        return count.toString()
     }
-
-    else -> count.toString()
+    if (count < 10_000) {
+        return "${count / 1_000} 千"
+    }
+    val roundedTenths = (count.toDouble() / 10_000 * 10).roundToInt()
+    val compactValue = if (roundedTenths % 10 == 0) {
+        (roundedTenths / 10).toString()
+    } else {
+        "${roundedTenths / 10}.${roundedTenths % 10}"
+    }
+    return "$compactValue 万"
 }
 
 fun formatDailyDate(dateString: String): String {
