@@ -58,6 +58,7 @@ import com.github.zly2006.zhihu.ui.QUESTION_SORT_UPDATED_TAG
 import com.github.zly2006.zhihu.ui.QUESTION_STATS_TAG
 import com.github.zly2006.zhihu.ui.QUESTION_TITLE_TAG
 import com.github.zly2006.zhihu.ui.QUESTION_VIEW_LOG_BUTTON_TAG
+import com.github.zly2006.zhihu.ui.QUESTION_WRITE_ANSWER_BUTTON_TAG
 import com.github.zly2006.zhihu.ui.QuestionScreen
 import com.github.zly2006.zhihu.viewmodel.PaginationEnvironment
 import com.github.zly2006.zhihu.viewmodel.feed.QuestionFeedViewModel
@@ -105,8 +106,8 @@ class QuestionScreenInstrumentedTest {
          * Expected behavior:
          * 1. The seeded title, statistics, and detail markdown must render from the mocked question
          *    detail endpoint through the production loadQuestion path.
-         * 2. Tapping the detail toggle should collapse the markdown body into the preview snippet,
-         *    then allow expanding back to the full content.
+         * 2. The detail should start as a tappable preview without an "expand detail" label. Once
+         *    expanded, a short "collapse" action should appear at the end of the markdown body.
          * 3. Sort buttons must call the seeded ViewModel refresh path whenever the order actually
          *    changes, and the follow button must toggle through mocked production POST/DELETE calls.
          * 4. View-log, share, and comments actions should exercise the real platform/dialog entry
@@ -122,23 +123,49 @@ class QuestionScreenInstrumentedTest {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val webviewMonitor = instrumentation.addMonitor(WebviewActivity::class.java.name, null, false)
         try {
-            composeRule.waitUntilTextExists("12 个回答  345 次浏览  7 条评论  89 人关注")
+            composeRule.waitUntilTextExists("89 关注 · 7 评论 · 82.1 万 浏览")
             composeRule.onNodeWithTag(QUESTION_TITLE_TAG).assertIsDisplayed()
             composeRule.onNodeWithText("离线问题标题").assertIsDisplayed()
             composeRule.onNodeWithTag(QUESTION_STATS_TAG).assertIsDisplayed()
-            composeRule.onNodeWithText("12 个回答  345 次浏览  7 条评论  89 人关注").assertIsDisplayed()
+            composeRule.onNodeWithText("89 关注 · 7 评论 · 82.1 万 浏览").assertIsDisplayed()
+            val actionButtonHeight = composeRule
+                .onNodeWithTag(QUESTION_WRITE_ANSWER_BUTTON_TAG)
+                .fetchSemanticsNode()
+                .boundsInRoot
+                .height
+            listOf(
+                QUESTION_FOLLOW_BUTTON_TAG,
+                QUESTION_SHARE_BUTTON_TAG,
+                QUESTION_COMMENTS_BUTTON_TAG,
+                QUESTION_VIEW_LOG_BUTTON_TAG,
+            ).forEach { tag ->
+                assertEquals(
+                    "Action buttons should share one visual height",
+                    actionButtonHeight,
+                    composeRule
+                        .onNodeWithTag(tag)
+                        .fetchSemanticsNode()
+                        .boundsInRoot.height,
+                    1f,
+                )
+            }
+            composeRule.onNodeWithText("展开详情").assertDoesNotExist()
+            composeRule.onNodeWithText("收起详情").assertDoesNotExist()
+            composeRule.onNodeWithTag(QUESTION_SCREEN_LIST_TAG).performScrollToNode(hasTestTag(QUESTION_DETAIL_PREVIEW_TAG))
+            composeRule.waitUntilTagIsDisplayed(QUESTION_DETAIL_PREVIEW_TAG)
+            composeRule.onNodeWithTag(QUESTION_DETAIL_PREVIEW_TAG).assertIsDisplayed()
+            composeRule.onNodeWithText("离线问题详情用于 QuestionScreen instrumented test。").assertIsDisplayed()
+
+            composeRule.onNodeWithTag(QUESTION_DETAIL_TOGGLE_TAG).performClick()
             composeRule.onNodeWithTag(QUESTION_SCREEN_LIST_TAG).performScrollToNode(hasTestTag(QUESTION_DETAIL_CONTENT_TAG))
             composeRule.waitUntilTagIsDisplayed(QUESTION_DETAIL_CONTENT_TAG)
             composeRule.onNodeWithTag(QUESTION_DETAIL_CONTENT_TAG).assertIsDisplayed()
+            composeRule.onNodeWithText("收起").assertIsDisplayed()
+            composeRule.onNodeWithText("收起详情").assertDoesNotExist()
 
             composeRule.onNodeWithTag(QUESTION_DETAIL_TOGGLE_TAG).performClick()
             composeRule.waitUntilTagIsDisplayed(QUESTION_DETAIL_PREVIEW_TAG)
             composeRule.onNodeWithTag(QUESTION_DETAIL_PREVIEW_TAG).assertIsDisplayed()
-            composeRule.onNodeWithText("离线问题详情用于 QuestionScreen instrumented test。").assertIsDisplayed()
-            composeRule.onNodeWithTag(QUESTION_DETAIL_TOGGLE_TAG).performClick()
-            composeRule.onNodeWithTag(QUESTION_SCREEN_LIST_TAG).performScrollToNode(hasTestTag(QUESTION_DETAIL_CONTENT_TAG))
-            composeRule.waitUntilTagIsDisplayed(QUESTION_DETAIL_CONTENT_TAG)
-            composeRule.onNodeWithTag(QUESTION_DETAIL_CONTENT_TAG).assertIsDisplayed()
 
             composeRule.onNodeWithTag(QUESTION_SORT_UPDATED_TAG).performClick()
             composeRule.onNodeWithTag(QUESTION_SORT_DEFAULT_TAG).performClick()
@@ -194,6 +221,8 @@ class QuestionScreenInstrumentedTest {
             .onNodeWithTag(QUESTION_SCREEN_LIST_TAG)
             .performScrollToNode(hasTestTag(tailItemTag))
         composeRule.onNodeWithTag(tailItemTag).assertIsDisplayed()
+        composeRule.onNodeWithTag(QUESTION_SORT_DEFAULT_TAG).assertIsDisplayed()
+        composeRule.onNodeWithTag(QUESTION_SORT_UPDATED_TAG).assertIsDisplayed()
         composeRule.onNodeWithTag(QUESTION_SCREEN_LIST_TAG).performVerticalSwipeCycle()
         composeRule
             .onNodeWithTag(QUESTION_SCREEN_LIST_TAG)
@@ -332,7 +361,7 @@ class QuestionScreenInstrumentedTest {
         updatedTime = 1_713_456_999L,
         url = "https://www.zhihu.com/question/$questionId",
         answerCount = 12,
-        visitCount = 345,
+        visitCount = 821_289,
         commentCount = 7,
         followerCount = 89,
         detail = "<p>离线问题详情用于 QuestionScreen instrumented test。</p>",

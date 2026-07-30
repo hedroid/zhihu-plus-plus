@@ -23,10 +23,15 @@ import kotlin.test.assertEquals
 
 class DisplayFormatTest {
     @Test
-    fun compactCountFormatsWanUnits() {
-        assertEquals("9999", formatCompactCount(9_999))
+    fun compactCountFormatsThousandAndWanUnits() {
+        assertEquals("999", formatCompactCount(999))
+        assertEquals("1 千", formatCompactCount(1_000))
+        assertEquals("1 千", formatCompactCount(1_234))
+        assertEquals("9 千", formatCompactCount(9_999))
         assertEquals("1 万", formatCompactCount(10_000))
         assertEquals("1.2 万", formatCompactCount(12_345))
+        assertEquals("82.1 万", formatCompactCount(821_289))
+        assertEquals("100 万", formatCompactCount(1_000_000))
     }
 
     @Test
