@@ -28,6 +28,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.zly2006.zhihu.navigation.Article
 import com.github.zly2006.zhihu.navigation.ArticleType
@@ -149,6 +150,14 @@ class PeopleScreenInstrumentedTest {
             .assertIsDisplayed()
         composeRule.onNodeWithTag(PEOPLE_SCREEN_ACTION_FAB_TAG).performClick()
         composeRule.onNodeWithTag(PEOPLE_SCREEN_ACTION_MENU_TAG).assertIsDisplayed()
+        assertEquals(
+            with(composeRule.density) { 180.dp.toPx() },
+            composeRule
+                .onNodeWithTag(PEOPLE_SCREEN_ACTION_MENU_TAG)
+                .fetchSemanticsNode()
+                .boundsInRoot.width,
+            1f,
+        )
         composeRule.onNodeWithContentDescription("关注", useUnmergedTree = true).assertIsDisplayed()
         val initialActionWidth =
             composeRule
@@ -470,7 +479,7 @@ class PeopleScreenInstrumentedTest {
          * Expected behavior:
          * 1. The profile tab row exposes a Zhihu-Web-style "关注订阅" entry.
          * 2. Inside that page, non-duplicated official entry names are available from one dropdown:
-         *    我订阅的专栏、关注的话题、关注的问题、关注的收藏夹.
+         *    订阅的专栏、关注的话题、关注的问题、关注的收藏夹.
          * 3. Followed questions and followed collections use native navigation destinations,
          *    matching the app's existing question and collection-detail screens.
          */
@@ -479,9 +488,17 @@ class PeopleScreenInstrumentedTest {
 
         composeRule.onNodeWithTag(PEOPLE_SCREEN_SUBSCRIPTIONS_LIST_TAG).assertIsDisplayed()
         composeRule.onNodeWithTag(PEOPLE_SCREEN_SUBSCRIPTION_DROPDOWN_TAG).assertIsDisplayed()
-        composeRule.onNodeWithText("我订阅的专栏").assertIsDisplayed()
+        composeRule.onNodeWithText("订阅的专栏").assertIsDisplayed()
 
         composeRule.onNodeWithTag(PEOPLE_SCREEN_SUBSCRIPTION_DROPDOWN_TAG).performClick()
+        assertEquals(
+            with(composeRule.density) { 168.dp.toPx() },
+            composeRule
+                .onNodeWithTag("people_screen_subscription_option_0")
+                .fetchSemanticsNode()
+                .boundsInRoot.width,
+            1f,
+        )
         composeRule.onNodeWithTag("people_screen_subscription_option_1").performClick()
         composeRule.onNodeWithTag("people_screen_followed_topic_item_topic-1").assertIsDisplayed()
 

@@ -70,6 +70,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -117,6 +118,7 @@ import com.github.zly2006.zhihu.shared.data.officialBadge
 import com.github.zly2006.zhihu.shared.data.officialBadgeDetails
 import com.github.zly2006.zhihu.shared.platform.rememberExternalUrlOpener
 import com.github.zly2006.zhihu.shared.platform.rememberImagePreviewOpener
+import com.github.zly2006.zhihu.shared.platform.rememberSettingsStore
 import com.github.zly2006.zhihu.shared.platform.rememberUserMessageSink
 import com.github.zly2006.zhihu.shared.platform.rememberZhihuWebUrlOpener
 import com.github.zly2006.zhihu.shared.util.Log
@@ -125,6 +127,8 @@ import com.github.zly2006.zhihu.ui.components.AuthorBadge
 import com.github.zly2006.zhihu.ui.components.FeedCard
 import com.github.zly2006.zhihu.ui.components.PaginatedList
 import com.github.zly2006.zhihu.ui.components.ProgressIndicatorFooter
+import com.github.zly2006.zhihu.ui.subscreens.DEFAULT_FAB_OPACITY
+import com.github.zly2006.zhihu.ui.subscreens.PREF_FAB_OPACITY
 import com.github.zly2006.zhihu.viewmodel.ContentBlocklistEnvironment
 import com.github.zly2006.zhihu.viewmodel.PaginationEnvironment
 import com.github.zly2006.zhihu.viewmodel.PaginationViewModel
@@ -525,7 +529,7 @@ private val PEOPLE_SCREEN_TITLES = listOf(
 )
 
 private val PEOPLE_SCREEN_SUBSCRIPTION_TITLES = listOf(
-    "我订阅的专栏",
+    "订阅的专栏",
     "关注的话题",
     "关注的问题",
     "关注的收藏夹",
@@ -615,10 +619,16 @@ fun PeopleScreen(
 ) {
     val navigator = LocalNavigator.current
     val userMessages = rememberUserMessageSink()
+    val settings = rememberSettingsStore()
     val paginationEnvironment = rememberPaginationEnvironment(allowGuestAccess = false)
     val viewModel = composeViewModel { PersonViewModel(person) }
     val coroutineScope = rememberCoroutineScope()
     var showActions by rememberSaveable { mutableStateOf(false) }
+    val actionFabOpacity = remember(settings) {
+        settings
+            .getInt(PREF_FAB_OPACITY, DEFAULT_FAB_OPACITY)
+            .coerceIn(10, 100) / 100f
+    }
     val isOwnProfile = currentAccount.login &&
         (
             currentAccount.id.isNotBlank() &&
@@ -1046,7 +1056,7 @@ fun PeopleScreen(
                     Column(horizontalAlignment = Alignment.End) {
                         Surface(
                             modifier = Modifier
-                                .width(216.dp)
+                                .width(180.dp)
                                 .testTag(PEOPLE_SCREEN_ACTION_MENU_TAG),
                             shape = RoundedCornerShape(16.dp),
                             color = MaterialTheme.colorScheme.surfaceContainer,
@@ -1181,6 +1191,17 @@ fun PeopleScreen(
                     modifier = Modifier.testTag(PEOPLE_SCREEN_ACTION_FAB_TAG),
                     onClick = { showActions = !showActions },
                     shape = CircleShape,
+                    containerColor = FloatingActionButtonDefaults.containerColor.copy(
+                        alpha = actionFabOpacity,
+                    ),
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(
+                        alpha = actionFabOpacity,
+                    ),
+                    elevation = if (actionFabOpacity < 1f) {
+                        FloatingActionButtonDefaults.elevation(0.dp, 0.dp, 0.dp, 0.dp)
+                    } else {
+                        FloatingActionButtonDefaults.elevation()
+                    },
                 ) {
                     Icon(
                         imageVector = if (showActions) Icons.Default.Close else Icons.Default.Shield,
@@ -1250,7 +1271,7 @@ private fun FollowingSubscriptionsPage(
                     DropdownMenu(
                         expanded = dropdownExpanded,
                         onDismissRequest = { dropdownExpanded = false },
-                        modifier = Modifier.width(184.dp),
+                        modifier = Modifier.width(168.dp),
                     ) {
                         PEOPLE_SCREEN_SUBSCRIPTION_TITLES.forEachIndexed { index, title ->
                             DropdownMenuItem(
@@ -1466,18 +1487,22 @@ private fun ColumnListItem(
 @Composable
 private fun FollowedQuestionListItem(question: FollowedQuestion) {
     val navigator = LocalNavigator.current
-    Column(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(horizontal = 4.dp, vertical = 4.dp)
             .testTag("people_screen_followed_question_item_${question.id}")
             .clickable {
                 question.id.toLongOrNull()?.let {
                     navigator.onNavigate(Question(it, question.title))
                 }
-            }.padding(vertical = 8.dp, horizontal = 4.dp),
+            },
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
         Text(
             text = question.title,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
             style = MaterialTheme.typography.titleMedium,
         )
     }
