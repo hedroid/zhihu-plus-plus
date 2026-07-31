@@ -41,6 +41,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryTabRow
@@ -69,6 +70,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
 import com.github.zly2006.zhihu.navigation.LocalNavigator
 import com.github.zly2006.zhihu.navigation.Person
+import com.github.zly2006.zhihu.shared.data.DataHolder
+import com.github.zly2006.zhihu.shared.data.Feed
+import com.github.zly2006.zhihu.shared.data.target
 import com.github.zly2006.zhihu.shared.platform.UserMessageDuration
 import com.github.zly2006.zhihu.shared.platform.rememberUserMessageSink
 import com.github.zly2006.zhihu.shared.ui.TopLevelReselectAction
@@ -415,26 +419,55 @@ fun FollowRecommendScreen(
                 FeedCard(
                     item = item,
                     modifier = Modifier.testTag("follow_recommend_item_${item.stableKey}"),
-                    onBlockUser = { feedItem ->
-                        feedBlockActions.handleBlockUser(viewModel, feedItem) { authorInfo ->
-                            feedAuthorBlockRequest = FeedAuthorBlockRequest(
-                                FeedAuthorBlockType.CONTENT_AUTHOR,
-                                authorInfo.first,
-                                authorInfo.second,
+                    menuItems = { dismissMenu ->
+                        DropdownMenuItem(
+                            text = { Text("屏蔽用户") },
+                            onClick = {
+                                dismissMenu()
+                                feedBlockActions.handleBlockUser(viewModel, item) { authorInfo ->
+                                    feedAuthorBlockRequest = FeedAuthorBlockRequest(
+                                        FeedAuthorBlockType.CONTENT_AUTHOR,
+                                        authorInfo.first,
+                                        authorInfo.second,
+                                    )
+                                }
+                            },
+                        )
+                        val canBlockQuestionAuthor = when (item.feed?.target) {
+                            is Feed.AnswerTarget, is Feed.QuestionTarget -> true
+                            else -> item.raw is DataHolder.Answer || item.raw is DataHolder.Question
+                        }
+                        if (canBlockQuestionAuthor) {
+                            DropdownMenuItem(
+                                text = { Text("屏蔽提问者") },
+                                onClick = {
+                                    dismissMenu()
+                                    feedBlockActions.handleBlockQuestionAuthor(viewModel, item) { authorInfo ->
+                                        feedAuthorBlockRequest = FeedAuthorBlockRequest(
+                                            FeedAuthorBlockType.QUESTION_AUTHOR,
+                                            authorInfo.first,
+                                            authorInfo.second,
+                                        )
+                                    }
+                                },
                             )
                         }
-                    },
-                    onBlockQuestionAuthor = { feedItem ->
-                        feedBlockActions.handleBlockQuestionAuthor(viewModel, feedItem) { authorInfo ->
-                            feedAuthorBlockRequest = FeedAuthorBlockRequest(
-                                FeedAuthorBlockType.QUESTION_AUTHOR,
-                                authorInfo.first,
-                                authorInfo.second,
+                        val topics = when (val raw = item.raw) {
+                            is DataHolder.Answer -> raw.question.topics
+                            is DataHolder.Question -> raw.topics
+                            is DataHolder.Article -> raw.topics ?: emptyList()
+                            is DataHolder.Pin -> raw.topics ?: emptyList()
+                            else -> emptyList()
+                        }
+                        topics.forEach { topic ->
+                            DropdownMenuItem(
+                                text = { Text("屏蔽「${topic.name}」") },
+                                onClick = {
+                                    dismissMenu()
+                                    feedBlockActions.handleBlockTopic(viewModel, topic.id, topic.name)
+                                },
                             )
                         }
-                    },
-                    onBlockTopic = { topicId, topicName ->
-                        feedBlockActions.handleBlockTopic(viewModel, topicId, topicName)
                     },
                 )
             }
@@ -513,26 +546,55 @@ fun FollowDynamicScreen(
                     item = item,
                     modifier = Modifier.testTag("follow_dynamic_item_${item.stableKey}"),
                     showSourceLabel = true,
-                    onBlockUser = { feedItem ->
-                        feedBlockActions.handleBlockUser(viewModel, feedItem) { authorInfo ->
-                            feedAuthorBlockRequest = FeedAuthorBlockRequest(
-                                FeedAuthorBlockType.CONTENT_AUTHOR,
-                                authorInfo.first,
-                                authorInfo.second,
+                    menuItems = { dismissMenu ->
+                        DropdownMenuItem(
+                            text = { Text("屏蔽用户") },
+                            onClick = {
+                                dismissMenu()
+                                feedBlockActions.handleBlockUser(viewModel, item) { authorInfo ->
+                                    feedAuthorBlockRequest = FeedAuthorBlockRequest(
+                                        FeedAuthorBlockType.CONTENT_AUTHOR,
+                                        authorInfo.first,
+                                        authorInfo.second,
+                                    )
+                                }
+                            },
+                        )
+                        val canBlockQuestionAuthor = when (item.feed?.target) {
+                            is Feed.AnswerTarget, is Feed.QuestionTarget -> true
+                            else -> item.raw is DataHolder.Answer || item.raw is DataHolder.Question
+                        }
+                        if (canBlockQuestionAuthor) {
+                            DropdownMenuItem(
+                                text = { Text("屏蔽提问者") },
+                                onClick = {
+                                    dismissMenu()
+                                    feedBlockActions.handleBlockQuestionAuthor(viewModel, item) { authorInfo ->
+                                        feedAuthorBlockRequest = FeedAuthorBlockRequest(
+                                            FeedAuthorBlockType.QUESTION_AUTHOR,
+                                            authorInfo.first,
+                                            authorInfo.second,
+                                        )
+                                    }
+                                },
                             )
                         }
-                    },
-                    onBlockQuestionAuthor = { feedItem ->
-                        feedBlockActions.handleBlockQuestionAuthor(viewModel, feedItem) { authorInfo ->
-                            feedAuthorBlockRequest = FeedAuthorBlockRequest(
-                                FeedAuthorBlockType.QUESTION_AUTHOR,
-                                authorInfo.first,
-                                authorInfo.second,
+                        val topics = when (val raw = item.raw) {
+                            is DataHolder.Answer -> raw.question.topics
+                            is DataHolder.Question -> raw.topics
+                            is DataHolder.Article -> raw.topics ?: emptyList()
+                            is DataHolder.Pin -> raw.topics ?: emptyList()
+                            else -> emptyList()
+                        }
+                        topics.forEach { topic ->
+                            DropdownMenuItem(
+                                text = { Text("屏蔽「${topic.name}」") },
+                                onClick = {
+                                    dismissMenu()
+                                    feedBlockActions.handleBlockTopic(viewModel, topic.id, topic.name)
+                                },
                             )
                         }
-                    },
-                    onBlockTopic = { topicId, topicName ->
-                        feedBlockActions.handleBlockTopic(viewModel, topicId, topicName)
                     },
                 )
             }
