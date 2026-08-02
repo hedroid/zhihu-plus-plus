@@ -28,7 +28,9 @@ import com.github.zly2006.zhihu.shared.data.navDestination
 import com.github.zly2006.zhihu.shared.data.questionAuthor
 import com.github.zly2006.zhihu.shared.data.target
 import com.github.zly2006.zhihu.shared.util.Log
+import com.github.zly2006.zhihu.shared.util.formatCompactCount
 import com.github.zly2006.zhihu.viewmodel.ContentInteractionEnvironment
+import com.github.zly2006.zhihu.viewmodel.FeedDisplayEnvironment
 import com.github.zly2006.zhihu.viewmodel.PaginationEnvironment
 import com.github.zly2006.zhihu.viewmodel.filter.ContentDetailProvider
 import com.github.zly2006.zhihu.viewmodel.filter.extractTopicIds
@@ -150,6 +152,11 @@ interface HomeFeedInteractionViewModel {
     fun onUiContentClick(environment: ContentInteractionEnvironment, feed: Feed, item: FeedDisplayItem)
 }
 
+internal fun compactHomeFeedCountText(text: String): String =
+    text.replace(Regex("(?<![\\d.])\\d+(?![\\d.])")) { match ->
+        formatCompactCount(match.value.toInt())
+    }
+
 class HomeFeedViewModel :
     BaseFeedViewModel(),
     HomeFeedInteractionViewModel {
@@ -166,6 +173,11 @@ class HomeFeedViewModel :
     public override suspend fun fetchFeeds(environment: PaginationEnvironment) {
         markItemsAsTouched(environment)
         super.fetchFeeds(environment)
+    }
+
+    override fun createDisplayItem(environment: FeedDisplayEnvironment, feed: Feed): FeedDisplayItem {
+        val item = super.createDisplayItem(environment, feed)
+        return item.copy(details = compactHomeFeedCountText(item.details))
     }
 
     @OptIn(DelicateCoroutinesApi::class)

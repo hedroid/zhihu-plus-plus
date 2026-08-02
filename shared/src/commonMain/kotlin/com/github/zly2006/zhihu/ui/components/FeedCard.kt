@@ -386,6 +386,8 @@ private fun FeedCardContent(
                             }
                         }
                         Spacer(Modifier.width(6.dp))
+                    } else {
+                        Spacer(modifier = Modifier.weight(1f))
                     }
                     if (item.details.isNotEmpty()) {
                         Text(
@@ -394,7 +396,6 @@ private fun FeedCardContent(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f),
                         )
                         FeedCardMenuBox(item, showMenu, onShowMenuChange, menuItems, navigator)
                     }
@@ -480,12 +481,14 @@ private fun FeedCardContent(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                Spacer(modifier = Modifier.weight(1f))
                 Text(
                     text = item.details,
                     fontSize = 12.sp,
                     lineHeight = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 FeedCardMenuBox(item, showMenu, onShowMenuChange, menuItems, navigator)
             }

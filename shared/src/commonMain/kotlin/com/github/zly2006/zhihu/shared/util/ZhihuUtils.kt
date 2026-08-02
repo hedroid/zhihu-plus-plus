@@ -72,11 +72,8 @@ fun HttpResponse.dumpCurlRequest(): String {
 }
 
 fun formatCompactCount(count: Int): String {
-    if (count < 1_000) {
-        return count.toString()
-    }
     if (count < 10_000) {
-        return "${count / 1_000} 千"
+        return count.toString()
     }
     val roundedTenths = (count.toDouble() / 10_000 * 10).roundToInt()
     val compactValue = if (roundedTenths % 10 == 0) {
