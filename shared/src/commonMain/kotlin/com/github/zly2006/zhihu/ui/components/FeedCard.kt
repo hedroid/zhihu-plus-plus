@@ -83,6 +83,8 @@ import com.github.zly2006.zhihu.ui.subscreens.PREF_FONT_SIZE
 import com.github.zly2006.zhihu.ui.subscreens.PREF_LINE_HEIGHT
 import com.github.zly2006.zhihu.util.parseEmphasizedHtmlTextWithTheme
 
+const val FEED_CARD_MORE_BUTTON_TAG = "feed_card_more_btn"
+
 /**
  * 信息流卡片的 Material 3 实现。
  *
@@ -232,7 +234,9 @@ private fun FeedCardMenuBox(
     Box {
         IconButton(
             onClick = { onShowMenuChange(true) },
-            modifier = Modifier.size(24.dp),
+            modifier = Modifier
+                .size(24.dp)
+                .testTag(FEED_CARD_MORE_BUTTON_TAG),
         ) {
             Icon(
                 imageVector = Icons.Default.MoreVert,
@@ -458,21 +462,6 @@ private fun FeedCardContent(
                     images = visiblePinImages,
                     modifier = Modifier.padding(top = 8.dp),
                 )
-                if (item.details.isNotEmpty()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = item.details,
-                            fontSize = 12.sp,
-                            lineHeight = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.weight(1f),
-                        )
-                        FeedCardMenuBox(item, showMenu, onShowMenuChange, menuItems, navigator)
-                    }
-                }
             }
             if (!thumbnailUrl.isNullOrEmpty() && showFeedThumbnail) {
                 Spacer(modifier = Modifier.width(8.dp))
@@ -484,6 +473,21 @@ private fun FeedCardContent(
                         .sizeIn(maxWidth = 60.dp)
                         .clip(RoundedCornerShape(8.dp)),
                 )
+            }
+        }
+        if (item.details.isNotEmpty()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = item.details,
+                    fontSize = 12.sp,
+                    lineHeight = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                FeedCardMenuBox(item, showMenu, onShowMenuChange, menuItems, navigator)
             }
         }
     }
