@@ -360,7 +360,7 @@ private fun FeedCardContent(
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
-                                .weight(1f, fill = false)
+                                .weight(1f)
                                 .clickable {},
                         ) {
                             AsyncImage(
@@ -469,9 +469,9 @@ private fun FeedCardContent(
                     model = thumbnailUrl,
                     contentDescription = "Thumbnail",
                     modifier = Modifier
-                        .weight(1f)
-                        .sizeIn(maxWidth = 60.dp)
+                        .size(60.dp)
                         .clip(RoundedCornerShape(8.dp)),
+                    contentScale = ContentScale.Crop,
                 )
             }
         }
