@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -76,7 +77,12 @@ class FeedCardInstrumentedTest {
             .onNodeWithTag(FEED_CARD_MORE_BUTTON_TAG)
             .fetchSemanticsNode()
             .boundsInRoot
+        val thumbnailBounds = composeRule
+            .onNodeWithContentDescription("Thumbnail", useUnmergedTree = true)
+            .fetchSemanticsNode()
+            .boundsInRoot
         val expectedTrailingInset = with(composeRule.density) { 16.dp.toPx() }
+        val expectedThumbnailSize = with(composeRule.density) { 60.dp.toPx() }
 
         assertEquals(
             "三点按钮应固定在卡片内容区右边缘，不能被缩略图挤向左侧",
@@ -84,9 +90,58 @@ class FeedCardInstrumentedTest {
             (cardBounds.right - moreButtonBounds.right).toDouble(),
             1.0,
         )
+        assertEquals(
+            "经典卡片缩略图宽度不能随原图比例或 Row 权重膨胀",
+            expectedThumbnailSize.toDouble(),
+            thumbnailBounds.width.toDouble(),
+            1.0,
+        )
+        assertEquals(
+            "经典卡片缩略图高度不能挤掉底部统计和菜单",
+            expectedThumbnailSize.toDouble(),
+            thumbnailBounds.height.toDouble(),
+            1.0,
+        )
 
         composeRule.onNodeWithTag(FEED_CARD_MORE_BUTTON_TAG).performClick()
         composeRule.onNodeWithText("外观设置").assertIsDisplayed()
+    }
+
+    @Test
+    fun retainedCardAndDuo3AppearanceKeepsMoreButtonAtTrailingContentEdge() {
+        composeRule.activity.getSharedPreferences(PREFERENCE_NAME, Context.MODE_PRIVATE).edit(commit = true) {
+            putString("feedCardStyle", "card")
+            putBoolean("duo3_card_appearance", true)
+            putBoolean("duo3_card_layout", true)
+        }
+        composeRule.setScreenContent {
+            FeedCard(
+                item = FeedDisplayItem(
+                    title = "保留外观设置的普通卡片",
+                    summary = "覆盖安装会保留手机上的卡片与 Duo3 设置。",
+                    details = "固定详情",
+                    feed = null,
+                    avatarSrc = "https://example.invalid/avatar.png",
+                    authorName = "固定作者",
+                ),
+                thumbnailUrl = "https://example.invalid/thumbnail.png",
+                modifier = Modifier.testTag(FEED_CARD_TAG),
+            )
+        }
+
+        val cardBounds = composeRule.onNodeWithTag(FEED_CARD_TAG).fetchSemanticsNode().boundsInRoot
+        val moreButtonBounds = composeRule
+            .onNodeWithTag(FEED_CARD_MORE_BUTTON_TAG)
+            .fetchSemanticsNode()
+            .boundsInRoot
+        val expectedTrailingInset = with(composeRule.density) { 32.dp.toPx() }
+
+        assertEquals(
+            "卡片与 Duo3 外观组合下，三点按钮也应固定在卡片右侧",
+            expectedTrailingInset.toDouble(),
+            (cardBounds.right - moreButtonBounds.right).toDouble(),
+            1.0,
+        )
     }
 
     private companion object {
