@@ -18,6 +18,7 @@
 package com.github.zly2006.zhihu.viewmodel.za
 import androidx.lifecycle.viewModelScope
 import com.github.zly2006.zhihu.navigation.Article
+import com.github.zly2006.zhihu.navigation.ArticleType
 import com.github.zly2006.zhihu.navigation.Pin
 import com.github.zly2006.zhihu.navigation.resolveContent
 import com.github.zly2006.zhihu.shared.data.CommonFeed
@@ -32,6 +33,7 @@ import com.github.zly2006.zhihu.viewmodel.ContentInteractionEnvironment
 import com.github.zly2006.zhihu.viewmodel.PaginationEnvironment
 import com.github.zly2006.zhihu.viewmodel.feed.BaseFeedViewModel
 import com.github.zly2006.zhihu.viewmodel.feed.HomeFeedInteractionViewModel
+import com.github.zly2006.zhihu.viewmodel.feed.compactHomeFeedCountText
 import com.github.zly2006.zhihu.viewmodel.feed.replaceHomeFeedItemsWithFilteredResult
 import com.github.zly2006.zhihu.viewmodel.postSigned
 import io.ktor.client.call.body
@@ -191,13 +193,22 @@ fun parseMobileHomeFeedDisplayItem(card: JsonObject): FeedDisplayItem? {
     val voteUp = footerLine.firstOrNull { it["reaction"]?.jsonPrimitive?.content == "Vote" }
     val comment = footerLine.firstOrNull { it["reaction"]?.jsonPrimitive?.content == "Comment" }
     val collect = footerLine.firstOrNull { it["reaction"]?.jsonPrimitive?.content == "Collect" }
-    val footerText = if (voteUp != null && comment != null && collect != null) {
+    val footerStats = if (voteUp != null && comment != null && collect != null) {
         val voteUpCount = voteUp["count"]!!.jsonPrimitive.int
         val commentCount = comment["count"]!!.jsonPrimitive.int
         val collectCount = collect["count"]!!.jsonPrimitive.int
-        "$voteUpCount 赞同 · $commentCount 评论 · $collectCount 收藏"
+        compactHomeFeedCountText("$voteUpCount 赞同 · $commentCount 评论 · $collectCount 收藏")
     } else {
-        footerLine.joStrMatch("type", "Text")["text"]!!.jsonPrimitive.content
+        footerLine
+            .joStrMatch("type", "Text")["text"]!!
+            .jsonPrimitive.content
+            .replace(Regex("^(回答|文章|想法)\\s*·\\s*"), "")
+            .let(::compactHomeFeedCountText)
+    }
+    val contentType = when (routeDest) {
+        is Pin -> "想法"
+        is Article -> if (routeDest.type == ArticleType.Answer) "回答" else "文章"
+        else -> "内容"
     }
     val lineAuthor =
         children
@@ -271,7 +282,7 @@ fun parseMobileHomeFeedDisplayItem(card: JsonObject): FeedDisplayItem? {
         authorName = authorName,
         summary = summary,
         title = title,
-        details = "$footerText · 手机版推荐",
+        details = "$contentType · $footerStats",
         feed = feed,
     )
 }

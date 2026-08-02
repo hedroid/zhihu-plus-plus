@@ -46,7 +46,7 @@ class MobileHomeFeedParserTest {
         requireNotNull(item)
         assertEquals("回答标题", item.title)
         assertEquals("回答摘要", item.summary)
-        assertEquals("10 赞同 · 2 评论 · 3 收藏 · 手机版推荐", item.details)
+        assertEquals("回答 · 10 赞同 · 2 评论 · 3 收藏", item.details)
         assertEquals("作者名", item.authorName)
         assertEquals("https://example.com/avatar.jpg", item.avatarSrc)
 
@@ -67,6 +67,26 @@ class MobileHomeFeedParserTest {
         )
 
         assertNull(item)
+    }
+
+    @Test
+    fun compactsLargeMobileRecommendationCounts() {
+        val item = parseMobileHomeFeedDisplayItem(
+            mobileCard(reactionFooter(voteCount = 12_600, commentCount = 2_555, collectCount = 999)),
+        )
+
+        requireNotNull(item)
+        assertEquals("回答 · 1.3 万 赞同 · 2555 评论 · 999 收藏", item.details)
+    }
+
+    @Test
+    fun compactsCountsFromMobileFooterText() {
+        val item = parseMobileHomeFeedDisplayItem(
+            mobileCard(lineWithText("回答 · 12600 赞同 · 1082 评论")),
+        )
+
+        requireNotNull(item)
+        assertEquals("回答 · 1.3 万 赞同 · 1082 评论", item.details)
     }
 
     @Test
@@ -179,6 +199,7 @@ class MobileHomeFeedParserTest {
         val item = requireNotNull(parseMobileHomeFeedDisplayItem(card))
 
         assertEquals("九图想法标题", item.title)
+        assertEquals("想法 · 10 赞同 · 2 评论 · 3 收藏", item.details)
         assertEquals(2064056340616631575L, assertIs<Pin>(item.navDestination).id)
         val target = assertIs<Feed.PinTarget>(assertIs<CommonFeed>(item.feed).target)
         assertEquals(2064056340616631575L, target.id)
@@ -196,7 +217,7 @@ class MobileHomeFeedParserTest {
         assertEquals("https://example.com/original-8.jpg", images.last().url)
     }
 
-    private fun mobileCard(): JsonObject = buildJsonObject {
+    private fun mobileCard(footer: JsonObject = reactionFooter()): JsonObject = buildJsonObject {
         put("type", "ComponentCard")
         put(
             "action",
@@ -224,7 +245,7 @@ class MobileHomeFeedParserTest {
                     },
                 )
                 add(lineWithText("置顶"))
-                add(reactionFooter())
+                add(footer)
                 add(authorLine())
             },
         )
@@ -246,15 +267,19 @@ class MobileHomeFeedParserTest {
         )
     }
 
-    private fun reactionFooter(): JsonObject = buildJsonObject {
+    private fun reactionFooter(
+        voteCount: Int = 10,
+        commentCount: Int = 2,
+        collectCount: Int = 3,
+    ): JsonObject = buildJsonObject {
         put("type", "Line")
         put("style", "LineFooterReaction_feed_v3")
         put(
             "elements",
             buildJsonArray {
-                add(reaction("Vote", 10))
-                add(reaction("Comment", 2))
-                add(reaction("Collect", 3))
+                add(reaction("Vote", voteCount))
+                add(reaction("Comment", commentCount))
+                add(reaction("Collect", collectCount))
             },
         )
     }
