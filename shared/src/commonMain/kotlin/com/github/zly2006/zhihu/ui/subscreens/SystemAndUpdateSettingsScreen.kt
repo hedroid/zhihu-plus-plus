@@ -65,6 +65,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -72,13 +73,14 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import com.github.zly2006.zhihu.data.AIGC_MARKING_ENABLED_PREFERENCE_KEY
 import com.github.zly2006.zhihu.navigation.LocalNavigator
-import com.github.zly2006.zhihu.shared.platform.rememberExternalUrlOpener
-import com.github.zly2006.zhihu.shared.platform.rememberSettingsStore
-import com.github.zly2006.zhihu.shared.util.ContinuousUsageReminderPolicy
+import com.github.zly2006.zhihu.platform.rememberExternalUrlOpener
+import com.github.zly2006.zhihu.platform.rememberSettingsStore
 import com.github.zly2006.zhihu.ui.components.SettingItem
 import com.github.zly2006.zhihu.ui.components.SettingItemGroup
 import com.github.zly2006.zhihu.ui.components.SettingItemWithSwitch
+import com.github.zly2006.zhihu.util.ContinuousUsageReminderPolicy
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 import zhihu.shared.generated.resources.Res
@@ -87,11 +89,12 @@ import zhihu.shared.generated.resources.ic_github_24dp
 import zhihu.shared.generated.resources.ic_telegram_24dp
 
 internal const val CONTINUOUS_USAGE_REMINDER_INTERVAL_MINUTES_KEY = "continuousUsageReminderIntervalMinutes"
+const val SYSTEM_SETTINGS_AIGC_MARKING_TAG = "system_settings_aigc_marking"
 
 /**
  * 系统、更新和外部服务设置页。
  *
- * 页面展示更新横幅、下载/安装/跳过版本操作、GitHub Token、自动检查更新、防沉迷提醒和社区链接。
+ * 页面展示更新横幅、下载/安装/跳过版本操作、GitHub Token、自动检查更新、Nightly、遥测、防沉迷提醒和社区链接。
  * 更新相关状态由平台 [SystemUpdateRuntime] 提供，防沉迷间隔写入 [CONTINUOUS_USAGE_REMINDER_INTERVAL_MINUTES_KEY]，
  * 改动时要同时考虑 Android 更新管理器和 Desktop 运行时。
  */
@@ -190,12 +193,12 @@ fun SystemAndUpdateSettingsScreen() {
                                     SelectionContainer {
                                         Text(
                                             buildAnnotatedString {
-                                                val prRegex = Regex("https://github.com/hedroid/zhihu-plus-plus/pull/(\\d+)")
+                                                val prRegex = Regex("https://github.com/zly2006/zhihu-plus-plus/pull/(\\d+)")
                                                 var lastIndex = 0
                                                 prRegex.findAll(releaseNotes!!).forEach { matchResult ->
                                                     append(releaseNotes!!.substring(lastIndex, matchResult.range.first))
                                                     val prNumber = matchResult.groupValues[1]
-                                                    withLink(LinkAnnotation.Url("https://github.com/hedroid/zhihu-plus-plus/pull/$prNumber")) {
+                                                    withLink(LinkAnnotation.Url("https://github.com/zly2006/zhihu-plus-plus/pull/$prNumber")) {
                                                         withStyle(
                                                             MaterialTheme.typography.bodyMedium
                                                                 .copy(color = MaterialTheme.colorScheme.primary)
@@ -214,7 +217,7 @@ fun SystemAndUpdateSettingsScreen() {
                                     }
                                     Spacer(modifier = Modifier.height(12.dp))
                                     TextButton(
-                                        onClick = { openExternalUrl("https://github.com/hedroid/zhihu-plus-plus/releases") },
+                                        onClick = { openExternalUrl("https://github.com/zly2006/zhihu-plus-plus/releases") },
                                         modifier = Modifier.align(Alignment.End),
                                     ) {
                                         Text("查看完整更新日志")
@@ -336,6 +339,47 @@ fun SystemAndUpdateSettingsScreen() {
                         autoCheckUpdates = it
                         updates.setAutoCheckEnabled(it)
                     },
+                )
+
+                var checkNightlyUpdates by remember { mutableStateOf(settings.getBoolean("checkNightlyUpdates", false)) }
+                SettingItemWithSwitch(
+                    title = { Text("检查 Nightly 版本更新") },
+                    description = { Text("检查每日构建版本 (可能不稳定)") },
+                    checked = checkNightlyUpdates,
+                    onCheckedChange = {
+                        checkNightlyUpdates = it
+                        settings.putBoolean("checkNightlyUpdates", it)
+                    },
+                )
+
+                var allowTelemetry by remember { mutableStateOf(settings.getBoolean("allowTelemetry", true)) }
+                SettingItemWithSwitch(
+                    title = { Text("允许发送遥测统计数据") },
+                    description = { Text("仅用于统计使用人数，不包含个人隐私") },
+                    checked = allowTelemetry,
+                    onCheckedChange = {
+                        allowTelemetry = it
+                        settings.putBoolean("allowTelemetry", it)
+                    },
+                )
+
+                var aigcMarkingEnabled by remember {
+                    mutableStateOf(settings.getBoolean(AIGC_MARKING_ENABLED_PREFERENCE_KEY, false))
+                }
+                SettingItemWithSwitch(
+                    modifier = Modifier.testTag(SYSTEM_SETTINGS_AIGC_MARKING_TAG),
+                    title = { Text("启用 AIGC 标记") },
+                    description = {
+                        Text(
+                            "如果启用，会把你正在浏览的内容发送到我们的服务器，这样你可以知道其他用户是否认为其疑似 AIGC。默认关闭，不会发送隐私信息。",
+                        )
+                    },
+                    checked = aigcMarkingEnabled,
+                    onCheckedChange = {
+                        aigcMarkingEnabled = it
+                        settings.putBoolean(AIGC_MARKING_ENABLED_PREFERENCE_KEY, it)
+                    },
+                    settingKey = AIGC_MARKING_ENABLED_PREFERENCE_KEY,
                 )
             }
 
@@ -478,7 +522,7 @@ fun SystemAndUpdateSettingsScreen() {
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     },
-                    onClick = { openExternalUrl("https://github.com/hedroid/zhihu-plus-plus/issues") },
+                    onClick = { openExternalUrl("https://github.com/zly2006/zhihu-plus-plus/issues") },
                 )
             }
         }
