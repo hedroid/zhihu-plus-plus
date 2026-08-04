@@ -16,21 +16,18 @@
  */
 
 package com.github.zly2006.zhihu.ui
+
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import com.github.zly2006.zhihu.navigation.Article
-import com.github.zly2006.zhihu.navigation.TopLevelDestination
-import com.github.zly2006.zhihu.shared.account.IosAccountStore
-import com.github.zly2006.zhihu.shared.data.RecommendationMode
-import com.github.zly2006.zhihu.shared.notification.NotificationSettingsStore
-import com.github.zly2006.zhihu.shared.platform.UserMessageSink
-import com.github.zly2006.zhihu.shared.platform.rememberUserMessageSink
+import com.github.zly2006.zhihu.notification.NotificationSettingsStore
+import com.github.zly2006.zhihu.platform.UserMessageSink
+import com.github.zly2006.zhihu.platform.rememberUserMessageSink
 import com.github.zly2006.zhihu.viewmodel.NotificationEnvironment
-import com.github.zly2006.zhihu.viewmodel.NotificationViewModel
-import io.ktor.client.HttpClient
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import platform.Foundation.NSURL
@@ -54,14 +51,10 @@ actual fun rememberArticleBrowserOpener(): (Article) -> Unit = remember {
 
 @Composable
 actual fun rememberNotificationEnvironment(
-    viewModel: NotificationViewModel,
     settingsStore: NotificationSettingsStore,
 ): NotificationEnvironment = remember(settingsStore) {
     IosNotificationEnvironment(settingsStore)
 }
-
-@Composable
-actual fun rememberNotificationShowDebugCopy(): Boolean = false
 
 private class IosNotificationEnvironment(
     override val notificationSettingsStore: NotificationSettingsStore,
@@ -80,6 +73,19 @@ private class IosNotificationEnvironment(
 @Composable
 actual fun rememberArticleHost(): ArticleHost? = null
 
+@Composable
+actual fun ArticleWebViewContent(
+    article: Article,
+    html: String,
+    title: String,
+    scrollState: ScrollState,
+    rememberedScrollY: Int,
+    rememberedScrollYSync: Boolean,
+    onRememberedScrollYSyncChange: (Boolean) -> Unit,
+    onImageLoadFailed: () -> Unit,
+    onDoubleTap: () -> Unit,
+) = Unit // TODO: iOS WebView 实现
+
 actual fun Modifier.articleMarkdownSelectionWorkaround(): Modifier = this
 
 @Composable
@@ -93,50 +99,11 @@ actual fun commentEmojiInlineKey(placeholder: String): String? = null // TODO: i
 actual fun Modifier.commentSelectionWorkaround(): Modifier = this
 
 @Composable
-actual fun rememberHomeAccountState(): HomeAccountState = HomeAccountState(
-    isLoggedIn = false,
-    avatarUrl = null,
-)
-
-@Composable
-actual fun rememberHomeUpdateAnnouncement(): HomeUpdateAnnouncement? = null
-
-@Composable
 actual fun rememberHomeIsDebuggable(): Boolean = false
-
-@Composable
-actual fun rememberHomeLoginRequester(): () -> Unit {
-    val userMessages = rememberUserMessageSink()
-    return remember(userMessages) {
-        { userMessages.showMessage("iOS 登录暂未实现") } // TODO: iOS 登录
-    }
-}
-
-@Composable
-actual fun rememberHomeFeedStartupCache(recommendationMode: RecommendationMode): HomeFeedStartupCache =
-    remember(recommendationMode) {
-        HomeFeedStartupCache(
-            readHomeFeedStartupCache = { emptyList() }, // TODO: iOS 首页缓存
-            writeHomeFeedStartupCache = { }, // TODO: iOS 首页缓存
-        )
-    }
 
 @Composable
 actual fun rememberAccountSettingsAccountState(): androidx.compose.runtime.State<AccountSettingsAccountState> =
     remember { mutableStateOf(AccountSettingsAccountState()) }
-
-@Composable
-actual fun rememberAccountProfileRefresher(): suspend () -> Unit = remember {
-    { } // TODO: iOS 刷新用户信息
-}
-
-@Composable
-actual fun rememberAccountLoginRequester(): () -> Unit {
-    val userMessages = rememberUserMessageSink()
-    return remember(userMessages) {
-        { userMessages.showMessage("iOS 登录暂未实现") } // TODO: iOS 登录
-    }
-}
 
 @Composable
 actual fun rememberAccountQrLoginRequester(): () -> Unit {
@@ -147,17 +114,12 @@ actual fun rememberAccountQrLoginRequester(): () -> Unit {
 }
 
 @Composable
-actual fun rememberAccountLogoutAction(): () -> Unit = remember {
-    { } // TODO: iOS 登出
-}
-
-@Composable
 actual fun rememberAppVersionInfo(): String = "iOS"
 
 @Composable
-actual fun rememberMainTabSelector(): (TopLevelDestination) -> Unit = remember {
-    { } // TODO: iOS 主 Tab 切换
-}
+actual fun ZhihuHtmlWebViewContent(html: String) = Unit // TODO: iOS HTML WebView 实现
+
+actual fun supportsZhihuHtmlWebView(): Boolean = false
 
 @Composable
 actual fun rememberBlocklistRuleImporter(
@@ -171,16 +133,15 @@ actual fun rememberBlocklistRuleExporter(): suspend () -> String = remember {
     { "" } // TODO: iOS 导出规则
 }
 
-@Composable
-actual fun rememberZhihuHttpClient(): HttpClient {
-    val store = remember { IosAccountStore() }
-    return store.httpClient()
-}
-
 internal fun openIosUrl(url: String) {
     val nsUrl = NSURL.URLWithString(url) ?: return
     UIApplication.sharedApplication.openURL(nsUrl)
 }
+
+@Composable
+actual fun QuestionDetailWebViewContent(questionId: Long, html: String) = Unit // TODO: iOS 问题 WebView 实现
+
+actual fun supportsQuestionDetailWebView(): Boolean = false
 
 actual fun Modifier.questionSelectionWorkaround(): Modifier = this
 

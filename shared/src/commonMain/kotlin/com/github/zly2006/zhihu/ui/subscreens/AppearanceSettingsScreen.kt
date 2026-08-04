@@ -93,12 +93,13 @@ import com.github.zly2006.zhihu.navigation.LocalNavigator
 import com.github.zly2006.zhihu.navigation.MyCollections
 import com.github.zly2006.zhihu.navigation.OnlineHistory
 import com.github.zly2006.zhihu.navigation.TopLevelDestination
-import com.github.zly2006.zhihu.shared.platform.rememberSettingsStore
-import com.github.zly2006.zhihu.shared.platform.rememberUserMessageSink
-import com.github.zly2006.zhihu.shared.theme.ThemeMode
-import com.github.zly2006.zhihu.shared.ui.ANSWER_DOUBLE_TAP_ACTION_PREFERENCE_KEY
-import com.github.zly2006.zhihu.shared.ui.AnswerDoubleTapAction
+import com.github.zly2006.zhihu.platform.rememberSettingsStore
+import com.github.zly2006.zhihu.platform.rememberUserMessageSink
 import com.github.zly2006.zhihu.theme.ThemeManager
+import com.github.zly2006.zhihu.theme.ThemeMode
+import com.github.zly2006.zhihu.ui.ANSWER_DOUBLE_TAP_ACTION_PREFERENCE_KEY
+import com.github.zly2006.zhihu.ui.ARTICLE_USE_WEBVIEW_PREFERENCE_KEY
+import com.github.zly2006.zhihu.ui.AnswerDoubleTapAction
 import com.github.zly2006.zhihu.ui.components.ANSWER_SWITCH_SENSITIVITY_PREFERENCE_KEY
 import com.github.zly2006.zhihu.ui.components.ColorPickerDialog
 import com.github.zly2006.zhihu.ui.components.DEFAULT_ANSWER_SWITCH_SENSITIVITY
@@ -123,6 +124,9 @@ const val APPEARANCE_SETTINGS_SCROLL_TAG = "appearanceSettings.scroll"
 const val APPEARANCE_SETTINGS_START_DESTINATION_TAG = "appearanceSettings.startDestination"
 const val APPEARANCE_SETTINGS_ANSWER_DOUBLE_TAP_TAG = "appearanceSettings.answerDoubleTap"
 const val APPEARANCE_SETTINGS_ANSWER_SWITCH_SENSITIVITY_TAG = "appearanceSettings.answerSwitchSensitivity"
+const val APPEARANCE_SETTINGS_USE_WEBVIEW_TAG = "appearanceSettings.useWebView"
+const val APPEARANCE_SETTINGS_WEBVIEW_FONT_TAG = "appearanceSettings.webViewFont"
+const val APPEARANCE_SETTINGS_WEBVIEW_OPTIONS_TAG = "appearanceSettings.webViewOptions"
 const val APPEARANCE_SETTINGS_BOTTOM_BAR_SECTION_KEY = "appearanceSettings.bottomBarSection"
 
 const val START_DESTINATION_PREFERENCE_KEY = "startDestination"
@@ -268,7 +272,6 @@ fun AppearanceSettingsScreen(
     onExit: () -> Unit,
 ) {
     val settingKey = setting.orEmpty()
-    val runtime = rememberThemeSettingsRuntime()
     val settings = rememberSettingsStore()
     val userMessages = rememberUserMessageSink()
 
@@ -379,7 +382,8 @@ fun AppearanceSettingsScreen(
                                 val isSelected = currentThemeMode == mode
                                 OutlinedButton(
                                     onClick = {
-                                        runtime.setThemeMode(mode)
+                                        ThemeManager.setThemeMode(mode)
+                                        settings.putString("themeMode", mode.name)
                                         userMessages.showShortMessage("已切换到$label")
                                     },
                                     colors = ButtonDefaults.outlinedButtonColors(
@@ -408,7 +412,8 @@ fun AppearanceSettingsScreen(
                     description = { Text("根据系统壁纸自动提取主题色（Android 12+ 可用）。\n关闭后可以自己设定主题颜色。") },
                     checked = useDynamicColor,
                     onCheckedChange = {
-                        runtime.setUseDynamicColor(it)
+                        ThemeManager.setUseDynamicColor(it)
+                        settings.putBoolean("useDynamicColor", it)
                         userMessages.showShortMessage("已${if (it) "启用" else "禁用"}动态取色")
                     },
                     settingKey = "dynamicColor",
@@ -441,7 +446,8 @@ fun AppearanceSettingsScreen(
                         initialColor = customColor,
                         onDismiss = { showColorPicker = false },
                         onColorSelected = { color ->
-                            runtime.setCustomColor(color)
+                            ThemeManager.setCustomColor(color)
+                            settings.putInt("customThemeColor", color.toArgb())
                             userMessages.showShortMessage("主题色已保存")
                             showColorPicker = false
                         },
@@ -519,7 +525,11 @@ fun AppearanceSettingsScreen(
                         ),
                         onDismiss = { showBackgroundColorPicker = false },
                         onColorSelected = { color ->
-                            runtime.setBackgroundColor(color, currentIsDarkTheme)
+                            ThemeManager.setBackgroundColor(color, currentIsDarkTheme)
+                            settings.putInt(
+                                if (currentIsDarkTheme) "backgroundColorDark" else "backgroundColorLight",
+                                color.toArgb(),
+                            )
                             userMessages.showShortMessage("背景颜色已保存")
                             showBackgroundColorPicker = false
                         },
@@ -614,6 +624,7 @@ fun AppearanceSettingsScreen(
             }
 
             // ── 信息流 ──────────────────────────────────────────────────────────
+            val showRefreshFab = remember { mutableStateOf(settings.getBoolean("showRefreshFab", true)) }
             SettingItemGroup(
                 title = "信息流",
             ) {
@@ -625,6 +636,16 @@ fun AppearanceSettingsScreen(
                     onCheckedChange = {
                         showFeedThumbnail.value = it
                         settings.putBoolean("showFeedThumbnail", it)
+                    },
+                )
+
+                SettingItemWithSwitch(
+                    title = { Text("显示刷新悬浮按钮") },
+                    description = { Text("在页面上显示可拖动的刷新按钮。") },
+                    checked = showRefreshFab.value,
+                    onCheckedChange = {
+                        showRefreshFab.value = it
+                        settings.putBoolean("showRefreshFab", it)
                     },
                 )
 
@@ -680,6 +701,68 @@ fun AppearanceSettingsScreen(
             SettingItemGroup(
                 title = "回答页",
             ) {
+                val articleUseWebview = remember {
+                    mutableStateOf(settings.getBoolean(ARTICLE_USE_WEBVIEW_PREFERENCE_KEY, false))
+                }
+                SettingItemWithSwitch(
+                    modifier = Modifier.testTag(APPEARANCE_SETTINGS_USE_WEBVIEW_TAG),
+                    title = { Text("使用 WebView 显示文章") },
+                    description = { Text("关闭后使用 Compose 渲染，支持代码高亮等高级功能。警告：这个渲染模式不再推荐，非专业人士请不要开启！") },
+                    checked = articleUseWebview.value,
+                    onCheckedChange = {
+                        articleUseWebview.value = it
+                        settings.putBoolean(ARTICLE_USE_WEBVIEW_PREFERENCE_KEY, it)
+                    },
+                    settingKey = ARTICLE_USE_WEBVIEW_PREFERENCE_KEY,
+                    highlightedKey = settingKey,
+                    bringIntoViewRequester = requesterFor(ARTICLE_USE_WEBVIEW_PREFERENCE_KEY),
+                )
+
+                if (articleUseWebview.value) {
+                    var customFontName by remember {
+                        mutableStateOf(settings.getStringOrNull("webviewCustomFontName"))
+                    }
+                    Column(
+                        modifier = Modifier.testTag(APPEARANCE_SETTINGS_WEBVIEW_OPTIONS_TAG),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        SettingItem(
+                            modifier = Modifier.testTag(APPEARANCE_SETTINGS_WEBVIEW_FONT_TAG),
+                            title = {
+                                Text(
+                                    "WebView 自定义字体",
+                                    modifier = Modifier.testTag(APPEARANCE_SETTINGS_WEBVIEW_FONT_TAG),
+                                )
+                            },
+                            description = { Text(customFontName ?: "未设置") },
+                            bottomAction = {
+                                WebViewCustomFontSettings(
+                                    customFontName = customFontName,
+                                    onCustomFontNameChange = { name ->
+                                        if (name == null) {
+                                            settings.remove("webviewCustomFontName")
+                                        } else {
+                                            settings.putString("webviewCustomFontName", name)
+                                        }
+                                        customFontName = name
+                                    },
+                                )
+                            },
+                        )
+
+                        val useHardwareAcceleration = remember { mutableStateOf(settings.getBoolean("webviewHardwareAcceleration", true)) }
+                        SettingItemWithSwitch(
+                            title = { Text("WebView 硬件加速") },
+                            description = { Text("提高渲染性能，可能导致兼容性问题。") },
+                            checked = useHardwareAcceleration.value,
+                            onCheckedChange = {
+                                useHardwareAcceleration.value = it
+                                settings.putBoolean("webviewHardwareAcceleration", it)
+                            },
+                        )
+                    }
+                }
+
                 val isTitleAutoHide = remember { mutableStateOf(settings.getBoolean("titleAutoHide", false)) }
                 SettingItemWithSwitch(
                     title = { Text("自动隐藏回答标题") },
@@ -1252,12 +1335,15 @@ fun AppearanceSettingsScreen(
                 settings.putBoolean("duo3_card_layout", true)
                 settings.putBoolean("duo3_article_bar", true)
                 settings.putBoolean("duo3_article_actions", true)
+                settings.putBoolean("showRefreshFab", false)
                 settings.putBoolean("buttonSkipAnswer", false)
                 duo3HomeAccount.value = true
                 duo3CardAppearance.value = true
                 duo3CardLayout.value = true
                 duo3ArticleBar.value = true
                 duo3ArticleActions.value = true
+                // 123duo3 改动中会移除 FAB。
+                showRefreshFab.value = false
                 buttonSkipAnswer.value = false
                 val updatedSelection = if (Home.name !in selectedBottomBarItemKeys.value) {
                     selectedBottomBarItemKeys.value + Account.name
@@ -1305,7 +1391,7 @@ fun AppearanceSettingsScreen(
                     Text(
                         text = buildAnnotatedString {
                             append("以上设置项可能随时更改，或并入主线。\n欢迎")
-                            withLink(LinkAnnotation.Url("https://github.com/hedroid/zhihu-plus-plus/issues")) {
+                            withLink(LinkAnnotation.Url("https://github.com/zly2006/zhihu-plus-plus/issues")) {
                                 withStyle(
                                     MaterialTheme.typography.bodyMedium
                                         .copy(

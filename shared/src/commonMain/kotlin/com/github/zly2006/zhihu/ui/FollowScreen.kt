@@ -39,10 +39,14 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Tab
@@ -68,15 +72,17 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
+import com.github.zly2006.zhihu.data.DataHolder
+import com.github.zly2006.zhihu.data.Feed
+import com.github.zly2006.zhihu.data.target
 import com.github.zly2006.zhihu.navigation.LocalNavigator
 import com.github.zly2006.zhihu.navigation.Person
-import com.github.zly2006.zhihu.shared.data.DataHolder
-import com.github.zly2006.zhihu.shared.data.Feed
-import com.github.zly2006.zhihu.shared.data.target
-import com.github.zly2006.zhihu.shared.platform.UserMessageDuration
-import com.github.zly2006.zhihu.shared.platform.rememberUserMessageSink
-import com.github.zly2006.zhihu.shared.ui.TopLevelReselectAction
-import com.github.zly2006.zhihu.shared.ui.topLevelReselectAction
+import com.github.zly2006.zhihu.platform.UserMessageDuration
+import com.github.zly2006.zhihu.platform.rememberSettingsStore
+import com.github.zly2006.zhihu.platform.rememberUserMessageSink
+import com.github.zly2006.zhihu.reading.RegisterReadingQueueSource
+import com.github.zly2006.zhihu.ui.TopLevelReselectAction
+import com.github.zly2006.zhihu.ui.components.DraggableRefreshButton
 import com.github.zly2006.zhihu.ui.components.FeedAuthorBlockConfirmDialog
 import com.github.zly2006.zhihu.ui.components.FeedAuthorBlockRequest
 import com.github.zly2006.zhihu.ui.components.FeedAuthorBlockType
@@ -85,8 +91,8 @@ import com.github.zly2006.zhihu.ui.components.FeedPullToRefresh
 import com.github.zly2006.zhihu.ui.components.NoOpPagerNestedScrollConnection
 import com.github.zly2006.zhihu.ui.components.PaginatedList
 import com.github.zly2006.zhihu.ui.components.ProgressIndicatorFooter
-import com.github.zly2006.zhihu.ui.components.rememberFeedBlockActions
 import com.github.zly2006.zhihu.ui.components.rememberNestedHorizontalPagerConnection
+import com.github.zly2006.zhihu.ui.topLevelReselectAction
 import com.github.zly2006.zhihu.viewmodel.feed.FollowRecommendViewModel
 import com.github.zly2006.zhihu.viewmodel.feed.FollowViewModel
 import com.github.zly2006.zhihu.viewmodel.feed.RecentMomentsViewModel
@@ -101,7 +107,9 @@ const val FOLLOW_SCREEN_TAB_ROW_TAG = "follow_screen_tab_row"
 const val FOLLOW_SCREEN_PAGER_TAG = "follow_screen_pager"
 const val FOLLOWING_USERS_ROW_TAG = "following_users_row"
 const val FOLLOW_RECOMMEND_LIST_TAG = "follow_recommend_list"
+const val FOLLOW_RECOMMEND_REFRESH_BUTTON_TAG = "follow_recommend_refresh_button"
 const val FOLLOW_DYNAMIC_LIST_TAG = "follow_dynamic_list"
+const val FOLLOW_DYNAMIC_REFRESH_BUTTON_TAG = "follow_dynamic_refresh_button"
 
 /**
  * 关注顶层页的生产入口。
@@ -367,9 +375,17 @@ fun FollowRecommendScreen(
     onTestLoadMore: (() -> Unit)? = null,
 ) {
     val viewModel: FollowRecommendViewModel = viewModel { FollowRecommendViewModel() }
+    val readingQueueSourceId = "follow:recommend"
+    if (isActive) {
+        RegisterReadingQueueSource(
+            sourceId = readingQueueSourceId,
+            items = viewModel.displayItems,
+        )
+    }
     val environment = rememberPaginationEnvironment(allowGuestAccess = viewModel.allowGuestAccess)
+    val settings = rememberSettingsStore()
     val userMessages = rememberUserMessageSink()
-    val feedBlockActions = rememberFeedBlockActions()
+    val showRefreshFab = remember { settings.getBoolean("showRefreshFab", true) }
     val listState = rememberLazyListState()
     var cachedScrollToTopTrigger by remember { mutableIntStateOf(scrollToTopTrigger) }
 
@@ -380,7 +396,7 @@ fun FollowRecommendScreen(
         )
         if (isActive) {
             when (action) {
-                TopLevelReselectAction.Refresh -> onTestRefreshClick?.invoke() ?: viewModel.refresh(environment)
+                TopLevelReselectAction.Refresh -> viewModel.refresh(environment)
                 TopLevelReselectAction.ScrollToTop -> listState.animateScrollToItem(0)
                 null -> {}
             }
@@ -418,13 +434,14 @@ fun FollowRecommendScreen(
             ) { item ->
                 FeedCard(
                     item = item,
+                    readingQueueSourceId = readingQueueSourceId.takeIf { isActive },
                     modifier = Modifier.testTag("follow_recommend_item_${item.stableKey}"),
                     menuItems = { dismissMenu ->
                         DropdownMenuItem(
                             text = { Text("屏蔽用户") },
                             onClick = {
                                 dismissMenu()
-                                feedBlockActions.handleBlockUser(viewModel, item) { authorInfo ->
+                                viewModel.handleBlockUser(environment, userMessages, item) { authorInfo ->
                                     feedAuthorBlockRequest = FeedAuthorBlockRequest(
                                         FeedAuthorBlockType.CONTENT_AUTHOR,
                                         authorInfo.first,
@@ -442,7 +459,7 @@ fun FollowRecommendScreen(
                                 text = { Text("屏蔽提问者") },
                                 onClick = {
                                     dismissMenu()
-                                    feedBlockActions.handleBlockQuestionAuthor(viewModel, item) { authorInfo ->
+                                    viewModel.handleBlockQuestionAuthor(environment, userMessages, item) { authorInfo ->
                                         feedAuthorBlockRequest = FeedAuthorBlockRequest(
                                             FeedAuthorBlockType.QUESTION_AUTHOR,
                                             authorInfo.first,
@@ -464,12 +481,27 @@ fun FollowRecommendScreen(
                                 text = { Text("屏蔽「${topic.name}」") },
                                 onClick = {
                                     dismissMenu()
-                                    feedBlockActions.handleBlockTopic(viewModel, topic.id, topic.name)
+                                    viewModel.handleBlockTopic(userMessages, topic.id, topic.name)
                                 },
                             )
                         }
                     },
                 )
+            }
+
+            if (showRefreshFab) {
+                DraggableRefreshButton(
+                    modifier = Modifier.testTag(FOLLOW_RECOMMEND_REFRESH_BUTTON_TAG),
+                    onClick = {
+                        onTestRefreshClick?.invoke() ?: viewModel.refresh(environment)
+                    },
+                ) {
+                    if (viewModel.isLoading) {
+                        CircularProgressIndicator(modifier = Modifier.size(36.dp))
+                    } else {
+                        Icon(Icons.Default.Refresh, contentDescription = "刷新")
+                    }
+                }
             }
         }
 
@@ -493,9 +525,17 @@ fun FollowDynamicScreen(
     onTestLoadMore: (() -> Unit)? = null,
 ) {
     val viewModel: FollowViewModel = viewModel { FollowViewModel() }
+    val readingQueueSourceId = "follow:dynamic"
+    if (isActive) {
+        RegisterReadingQueueSource(
+            sourceId = readingQueueSourceId,
+            items = viewModel.displayItems,
+        )
+    }
     val environment = rememberPaginationEnvironment(allowGuestAccess = viewModel.allowGuestAccess)
+    val settings = rememberSettingsStore()
     val userMessages = rememberUserMessageSink()
-    val feedBlockActions = rememberFeedBlockActions()
+    val showRefreshFab = remember { settings.getBoolean("showRefreshFab", true) }
     val listState = rememberLazyListState()
     var cachedScrollToTopTrigger by remember { mutableIntStateOf(scrollToTopTrigger) }
 
@@ -506,7 +546,7 @@ fun FollowDynamicScreen(
         )
         if (isActive) {
             when (action) {
-                TopLevelReselectAction.Refresh -> onTestRefreshClick?.invoke() ?: viewModel.refresh(environment)
+                TopLevelReselectAction.Refresh -> viewModel.refresh(environment)
                 TopLevelReselectAction.ScrollToTop -> listState.animateScrollToItem(0)
                 null -> {}
             }
@@ -544,6 +584,7 @@ fun FollowDynamicScreen(
             ) { item ->
                 FeedCard(
                     item = item,
+                    readingQueueSourceId = readingQueueSourceId.takeIf { isActive },
                     modifier = Modifier.testTag("follow_dynamic_item_${item.stableKey}"),
                     showSourceLabel = true,
                     menuItems = { dismissMenu ->
@@ -551,7 +592,7 @@ fun FollowDynamicScreen(
                             text = { Text("屏蔽用户") },
                             onClick = {
                                 dismissMenu()
-                                feedBlockActions.handleBlockUser(viewModel, item) { authorInfo ->
+                                viewModel.handleBlockUser(environment, userMessages, item) { authorInfo ->
                                     feedAuthorBlockRequest = FeedAuthorBlockRequest(
                                         FeedAuthorBlockType.CONTENT_AUTHOR,
                                         authorInfo.first,
@@ -569,7 +610,7 @@ fun FollowDynamicScreen(
                                 text = { Text("屏蔽提问者") },
                                 onClick = {
                                     dismissMenu()
-                                    feedBlockActions.handleBlockQuestionAuthor(viewModel, item) { authorInfo ->
+                                    viewModel.handleBlockQuestionAuthor(environment, userMessages, item) { authorInfo ->
                                         feedAuthorBlockRequest = FeedAuthorBlockRequest(
                                             FeedAuthorBlockType.QUESTION_AUTHOR,
                                             authorInfo.first,
@@ -591,12 +632,27 @@ fun FollowDynamicScreen(
                                 text = { Text("屏蔽「${topic.name}」") },
                                 onClick = {
                                     dismissMenu()
-                                    feedBlockActions.handleBlockTopic(viewModel, topic.id, topic.name)
+                                    viewModel.handleBlockTopic(userMessages, topic.id, topic.name)
                                 },
                             )
                         }
                     },
                 )
+            }
+
+            if (showRefreshFab) {
+                DraggableRefreshButton(
+                    modifier = Modifier.testTag(FOLLOW_DYNAMIC_REFRESH_BUTTON_TAG),
+                    onClick = {
+                        onTestRefreshClick?.invoke() ?: viewModel.refresh(environment)
+                    },
+                ) {
+                    if (viewModel.isLoading) {
+                        CircularProgressIndicator(modifier = Modifier.size(36.dp))
+                    } else {
+                        Icon(Icons.Default.Refresh, contentDescription = "刷新")
+                    }
+                }
             }
         }
 

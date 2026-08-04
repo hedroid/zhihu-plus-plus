@@ -18,16 +18,17 @@
 package com.github.zly2006.zhihu.viewmodel.filter
 
 import com.fleeksoft.ksoup.Ksoup
+import com.github.zly2006.zhihu.data.AdvertisementFeed
+import com.github.zly2006.zhihu.data.DataHolder
+import com.github.zly2006.zhihu.data.FeedDisplayItem
+import com.github.zly2006.zhihu.data.navDestination
+import com.github.zly2006.zhihu.data.questionAuthor
+import com.github.zly2006.zhihu.data.target
+import com.github.zly2006.zhihu.filter.ContentOpenEventSupport
 import com.github.zly2006.zhihu.navigation.Article
 import com.github.zly2006.zhihu.navigation.NavDestination
 import com.github.zly2006.zhihu.navigation.Pin
-import com.github.zly2006.zhihu.shared.data.DataHolder
-import com.github.zly2006.zhihu.shared.data.FeedDisplayItem
-import com.github.zly2006.zhihu.shared.data.navDestination
-import com.github.zly2006.zhihu.shared.data.questionAuthor
-import com.github.zly2006.zhihu.shared.data.target
-import com.github.zly2006.zhihu.shared.filter.ContentOpenEventSupport
-import com.github.zly2006.zhihu.shared.platform.SettingsStore
+import com.github.zly2006.zhihu.platform.SettingsStore
 import kotlinx.serialization.json.Json
 
 class ForegroundReadFilterPipeline(
@@ -36,7 +37,7 @@ class ForegroundReadFilterPipeline(
     private val blockedFeedRecordDao: BlockedFeedRecordDao,
 ) {
     suspend fun filter(items: List<FeedDisplayItem>): List<FeedDisplayItem> {
-        if (!settings.enableContentFilter) {
+        if (settings.reverseBlock || !settings.enableContentFilter) {
             return items
         }
 
@@ -248,6 +249,16 @@ class FeedDisplayFilterPipeline(
         }
 
         val filterableContents = itemToFilterableMap.values.toList()
+
+        if (settings.reverseBlock) {
+            val adIds = filterableContents
+                .filter { content -> getFeedAdBlockReason(content, FeedAdBlockSettings()) != null }
+                .map { it.contentId }
+                .toSet()
+            return items.filter { item ->
+                item.resolveContentIdentity().id in adIds
+            } + items.filter { it.feed is AdvertisementFeed }
+        }
 
         val adBlockedContents = mutableListOf<Pair<FilterableContent, String>>()
         val nonAdContents = filterableContents.filter { content ->
@@ -470,6 +481,7 @@ private fun getLinkBasedAdReason(
 
 data class FeedFilterSettings(
     val enableContentFilter: Boolean = true,
+    val reverseBlock: Boolean = false,
     val filterFollowedUserContent: Boolean = false,
     val enableKeywordBlocking: Boolean = true,
     val enableNlpBlocking: Boolean = true,
@@ -482,6 +494,7 @@ data class FeedFilterSettings(
 
 fun SettingsStore.toFeedFilterSettings(): FeedFilterSettings = FeedFilterSettings(
     enableContentFilter = getBoolean("enableContentFilter", true),
+    reverseBlock = getBoolean("reverseBlock", false),
     filterFollowedUserContent = getBoolean("filterFollowedUserContent", false),
     enableKeywordBlocking = getBoolean("enableKeywordBlocking", true),
     enableNlpBlocking = getBoolean("enableNLPBlocking", true),

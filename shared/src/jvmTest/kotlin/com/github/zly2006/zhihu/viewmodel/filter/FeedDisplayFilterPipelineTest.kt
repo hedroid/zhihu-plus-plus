@@ -17,16 +17,17 @@
 
 package com.github.zly2006.zhihu.viewmodel.filter
 
+import com.github.zly2006.zhihu.data.AdvertisementFeed
+import com.github.zly2006.zhihu.data.CommonFeed
+import com.github.zly2006.zhihu.data.DataHolder
+import com.github.zly2006.zhihu.data.Feed
+import com.github.zly2006.zhihu.data.FeedDisplayItem
+import com.github.zly2006.zhihu.data.Person
+import com.github.zly2006.zhihu.data.toFeedDisplayItemNavDestinationJson
 import com.github.zly2006.zhihu.data.zhihuContentDetailInclude
 import com.github.zly2006.zhihu.navigation.Article
 import com.github.zly2006.zhihu.navigation.ArticleType
 import com.github.zly2006.zhihu.navigation.Question
-import com.github.zly2006.zhihu.shared.data.CommonFeed
-import com.github.zly2006.zhihu.shared.data.DataHolder
-import com.github.zly2006.zhihu.shared.data.Feed
-import com.github.zly2006.zhihu.shared.data.FeedDisplayItem
-import com.github.zly2006.zhihu.shared.data.Person
-import com.github.zly2006.zhihu.shared.data.toFeedDisplayItemNavDestinationJson
 import com.github.zly2006.zhihu.viewmodel.feed.resolveFeedQuestionAuthorInfo
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -96,6 +97,41 @@ class FeedDisplayFilterPipelineTest {
 
         assertEquals(listOf("followed"), result.map { it.title })
         assertEquals(0, fetchCount)
+        assertEquals(
+            emptyList(),
+            fixture.database
+                .blockedFeedRecordDao()
+                .observeAll()
+                .first(),
+        )
+        fixture.database.close()
+    }
+
+    @Test
+    fun reverseBlockReturnsDetectedAdsAndAdvertisementFeeds() = runTest {
+        val fixture = fixture(settings = FeedFilterSettings(reverseBlock = true))
+        val paidItem = item("paid", 1)
+        val normalItem = item("normal", 2)
+        val advertisementItem = FeedDisplayItem(
+            title = "ad feed",
+            summary = null,
+            details = "广告",
+            feed = AdvertisementFeed(
+                ad = AdvertisementFeed.Ad(
+                    creatives = listOf(AdvertisementFeed.Creative("https://ad.example", "ad", "ad")),
+                ),
+            ),
+        )
+
+        val result = fixture
+            .pipeline(
+                detailProvider = provider(
+                    1L to article("paid", paid = true),
+                    2L to article("normal"),
+                ),
+            ).filter(listOf(paidItem, normalItem, advertisementItem))
+
+        assertEquals(listOf("paid", "ad feed"), result.map { it.title })
         assertEquals(
             emptyList(),
             fixture.database

@@ -16,20 +16,18 @@
  */
 
 package com.github.zly2006.zhihu.ui.subscreens
+
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import com.github.zly2006.zhihu.shared.desktop.DesktopAccountStore
-import com.github.zly2006.zhihu.shared.desktop.openDesktopExternalUrl
-import com.github.zly2006.zhihu.shared.desktop.signedWithResponse
-import com.github.zly2006.zhihu.shared.platform.rememberSettingsStore
-import com.github.zly2006.zhihu.shared.updater.SchematicVersion
-import com.github.zly2006.zhihu.shared.updater.extractGithubReleaseNotes
-import com.github.zly2006.zhihu.shared.updater.fetchLatestZhihuRelease
-import com.github.zly2006.zhihu.util.ZhihuCredentialRefresher
+import com.github.zly2006.zhihu.desktop.DesktopAccountStore
+import com.github.zly2006.zhihu.desktop.openDesktopExternalUrl
+import com.github.zly2006.zhihu.platform.rememberSettingsStore
+import com.github.zly2006.zhihu.updater.SchematicVersion
+import com.github.zly2006.zhihu.updater.extractGithubReleaseNotes
+import com.github.zly2006.zhihu.updater.fetchLatestZhihuRelease
+import com.github.zly2006.zhihu.updater.fetchNightlyZhihuRelease
 import com.mikepenz.aboutlibraries.Libs
 import io.ktor.client.HttpClient
-import io.ktor.client.statement.bodyAsText
-import io.ktor.http.HttpMethod
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.io.File
 import java.util.Properties
@@ -54,6 +52,7 @@ actual fun rememberSystemUpdateRuntime(): SystemUpdateRuntime {
                 checkDesktopUpdate(
                     client = accountStore.httpClient(),
                     githubToken = settings.getStringOrNull("githubToken")?.takeIf { it.isNotBlank() },
+                    checkNightly = settings.getBoolean("checkNightlyUpdates", false),
                     skippedVersion = settings.getStringOrNull(PREF_SKIPPED_VERSION),
                     state = desktopSystemUpdateState,
                 )
@@ -88,22 +87,42 @@ private const val PREF_SKIPPED_VERSION = "skippedVersion"
 private suspend fun checkDesktopUpdate(
     client: HttpClient,
     githubToken: String?,
+    checkNightly: Boolean,
     skippedVersion: String?,
     state: MutableStateFlow<SystemUpdateState>,
 ) {
     try {
         state.value = SystemUpdateState.Checking
         val currentVersion = SchematicVersion.fromString(desktopVersionName())
-        val latestResponse = fetchLatestZhihuRelease(client, githubToken)
-        val latestVersion = latestResponse.tagName.takeIf { it.isNotBlank() }?.let { SchematicVersion.fromString(it) }
-        val releaseNotes = latestResponse.body?.let(::extractGithubReleaseNotes)
+        var latestResponse = fetchLatestZhihuRelease(client, githubToken)
+        var latestVersion = latestResponse.tagName.takeIf { it.isNotBlank() }?.let { SchematicVersion.fromString(it) }
+        var isNightly = false
+        var releaseNotes = latestResponse.body?.let(::extractGithubReleaseNotes)
+
+        if (checkNightly) {
+            runCatching {
+                fetchNightlyZhihuRelease(client, githubToken)
+            }.onSuccess { nightlyResponse ->
+                if (nightlyResponse.tagName == "nightly") {
+                    latestResponse = nightlyResponse
+                    latestVersion = SchematicVersion(
+                        allComponents = listOf(999, 0, 0),
+                        preRelease = "nightly",
+                        build = "",
+                    )
+                    isNightly = true
+                    releaseNotes = nightlyResponse.body?.let(::extractGithubReleaseNotes)
+                }
+            }
+        }
 
         val version = latestVersion
-        if (version != null && version.isUpdateFor(currentVersion)) {
+        if (version != null && version > currentVersion) {
             val versionString = version.toString()
             if (skippedVersion != versionString) {
                 state.value = SystemUpdateState.UpdateAvailable(
                     version = versionString,
+                    isNightly = isNightly,
                     releaseNotes = releaseNotes,
                     downloadUrl = latestResponse.htmlUrl ?: latestResponse.assets
                         .firstOrNull()
@@ -122,7 +141,7 @@ private suspend fun checkDesktopUpdate(
     }
 }
 
-private fun desktopVersionName(): String =
+internal fun desktopVersionName(): String =
     System.getProperty("zhihu.version")
         ?: SystemUpdateRuntime::class.java.`package`?.implementationVersion
         ?: readDesktopVersionFromGradleProperties()
@@ -143,44 +162,8 @@ private fun readDesktopVersionFromGradleProperties(): String? {
 }
 
 @Composable
-actual fun rememberDeveloperSettingsRuntime(): DeveloperSettingsRuntime {
-    val store = remember { DesktopAccountStore() }
-    return remember(store) {
-        DeveloperSettingsRuntime(
-            cookies = { store.load().cookies },
-            networkStatus = { "网络状态：桌面端使用系统网络" },
-            powerSaveModeText = { null },
-            runtimeInfo = { DeveloperRuntimeInfo() },
-            verifyLogin = { cookies ->
-                store.verifyAndSave(cookies.toMutableMap())
-            },
-            refreshToken = {
-                val client = store.httpClient()
-                ZhihuCredentialRefresher.refreshZhihuToken(
-                    ZhihuCredentialRefresher.fetchRefreshToken(client),
-                    client,
-                )
-            },
-            saveCookies = { cookies ->
-                val current = store.load()
-                store.save(
-                    current.copy(
-                        login = true,
-                        cookies = cookies.toMutableMap(),
-                    ),
-                )
-            },
-            signedGet = { url ->
-                store.signedWithResponse(
-                    url = url,
-                    block = { method = HttpMethod.Get },
-                ) { response ->
-                    response.bodyAsText()
-                }
-            },
-        )
-    }
-}
+actual fun rememberDeveloperRuntimeInfo(): DeveloperRuntimeInfo =
+    DeveloperRuntimeInfo(networkStatus = "网络状态：桌面端使用系统网络")
 
 @Composable
 actual fun rememberOpenSourceLicensesLibraries(): Libs = remember {

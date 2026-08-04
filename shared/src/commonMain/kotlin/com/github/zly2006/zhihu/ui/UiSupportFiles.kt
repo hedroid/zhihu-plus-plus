@@ -17,6 +17,7 @@
 
 package com.github.zly2006.zhihu.ui
 
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.text.InlineTextContent
@@ -32,6 +33,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.fleeksoft.ksoup.Ksoup
+import com.github.zly2006.zhihu.data.DataHolder
+import com.github.zly2006.zhihu.filter.ContentOpenFrom
 import com.github.zly2006.zhihu.markdown.RenderMarkdown
 import com.github.zly2006.zhihu.navigation.AnswerNavigator
 import com.github.zly2006.zhihu.navigation.Article
@@ -40,22 +43,17 @@ import com.github.zly2006.zhihu.navigation.NavDestination
 import com.github.zly2006.zhihu.navigation.Pin
 import com.github.zly2006.zhihu.navigation.Question
 import com.github.zly2006.zhihu.navigation.TopLevelDestination
-import com.github.zly2006.zhihu.shared.data.DataHolder
-import com.github.zly2006.zhihu.shared.data.FeedDisplayItem
-import com.github.zly2006.zhihu.shared.data.RecommendationMode
-import com.github.zly2006.zhihu.shared.filter.ContentOpenFrom
-import com.github.zly2006.zhihu.shared.platform.SettingsStore
-import com.github.zly2006.zhihu.shared.platform.UserMessageSink
-import com.github.zly2006.zhihu.shared.platform.rememberSettingsStore
-import com.github.zly2006.zhihu.shared.ui.ANSWER_DOUBLE_TAP_ACTION_PREFERENCE_KEY
-import com.github.zly2006.zhihu.shared.ui.AnswerDoubleTapAction
+import com.github.zly2006.zhihu.platform.SettingsStore
+import com.github.zly2006.zhihu.platform.UserMessageSink
+import com.github.zly2006.zhihu.platform.rememberSettingsStore
+import com.github.zly2006.zhihu.ui.ANSWER_DOUBLE_TAP_ACTION_PREFERENCE_KEY
+import com.github.zly2006.zhihu.ui.AnswerDoubleTapAction
 import com.github.zly2006.zhihu.ui.components.ANSWER_SWITCH_SENSITIVITY_PREFERENCE_KEY
 import com.github.zly2006.zhihu.ui.components.DEFAULT_ANSWER_SWITCH_SENSITIVITY
 import com.github.zly2006.zhihu.ui.components.normalizedAnswerSwitchSensitivity
 import com.github.zly2006.zhihu.viewmodel.ArticleViewModel.CachedAnswerContent
 import com.github.zly2006.zhihu.viewmodel.ZhihuApiEnvironment
 import com.github.zly2006.zhihu.viewmodel.getOrFetchContentDetail
-import io.ktor.client.HttpClient
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.jsonPrimitive
@@ -111,23 +109,39 @@ internal fun JsonObject?.booleanCompat(vararg keys: String): Boolean {
     } ?: false
 }
 
-/** 想法正文统一使用 Compose Markdown 渲染。 */
+/**
+ * 想法正文的 HTML 渲染入口。
+ *
+ * 根据当前 WebView 设置选择平台 WebView 或 Compose Markdown 渲染。这样想法页、问题详情和文章页可以共享同一条“正文渲染模式”
+ * 语义，避免用户打开 WebView 后只有部分内容类型生效。
+ */
 @Composable
 fun PinHtmlContent(html: String) {
-    Spacer(Modifier.height(10.dp))
-    RenderMarkdown(
-        html = html,
-        modifier = Modifier.questionSelectionWorkaround(),
-        selectable = true,
-        enableScroll = false,
-    )
+    if (rememberSettingsStore().getBoolean(ARTICLE_USE_WEBVIEW_PREFERENCE_KEY, false) &&
+        supportsZhihuHtmlWebView()
+    ) {
+        ZhihuHtmlWebViewContent(html)
+    } else {
+        Spacer(Modifier.height(10.dp))
+        RenderMarkdown(
+            html = html,
+            modifier = Modifier.questionSelectionWorkaround(),
+            selectable = true,
+            enableScroll = false,
+        )
+    }
 }
+
+expect fun supportsZhihuHtmlWebView(): Boolean
+
+@Composable
+expect fun ZhihuHtmlWebViewContent(html: String)
 
 /**
  * 文章页 Compose UI 使用的运行时设置视图。
  *
  * 这些值保存在可变 state 中，是因为大多数阅读设置都应该在用户已经打开文章时即时生效：标题/底栏自动隐藏、回答切换、
- * 双击正文动作也不应要求重建页面。持久化仍由 [SettingsStore] 负责；这个类只镜像会影响当前 UI 的值，
+ * WebView 渲染和双击正文动作都不应要求重建页面。持久化仍由 [SettingsStore] 负责；这个类只镜像会影响当前 UI 的值，
  * 并暴露文章页内弹窗会用到的显式保存入口。
  */
 class ArticleScreenSettingsState(
@@ -140,6 +154,7 @@ class ArticleScreenSettingsState(
     buttonSkipAnswer: Boolean,
     autoHideSkipAnswerButton: Boolean,
     answerDoubleTapAction: AnswerDoubleTapAction,
+    useWebView: Boolean,
     private val saveAnswerDoubleTapActionPreference: (AnswerDoubleTapAction) -> Unit,
 ) {
     var isTitleAutoHide by mutableStateOf(isTitleAutoHide)
@@ -151,6 +166,7 @@ class ArticleScreenSettingsState(
     var buttonSkipAnswer by mutableStateOf(buttonSkipAnswer)
     var autoHideSkipAnswerButton by mutableStateOf(autoHideSkipAnswerButton)
     var answerDoubleTapAction by mutableStateOf(answerDoubleTapAction)
+    var useWebView by mutableStateOf(useWebView)
 
     fun saveAnswerDoubleTapAction(action: AnswerDoubleTapAction) {
         answerDoubleTapAction = action
@@ -183,6 +199,7 @@ fun rememberArticleScreenSettingsState(): ArticleScreenSettingsState {
             buttonSkipAnswer = settings.getBoolean("buttonSkipAnswer", true),
             autoHideSkipAnswerButton = settings.getBoolean("autoHideSkipAnswerButton", true),
             answerDoubleTapAction = settings.answerDoubleTapAction(),
+            useWebView = settings.getBoolean(ARTICLE_USE_WEBVIEW_PREFERENCE_KEY, false),
             saveAnswerDoubleTapActionPreference = { action ->
                 settings.putString(
                     ANSWER_DOUBLE_TAP_ACTION_PREFERENCE_KEY,
@@ -214,6 +231,7 @@ fun rememberArticleScreenSettingsState(): ArticleScreenSettingsState {
 
                 "pinAnswerDate" -> state.pinAnswerDate = settings.getBoolean(key, false)
                 "duo3_article_actions" -> state.useDuo3ArticleActions = settings.getBoolean(key, false)
+                ARTICLE_USE_WEBVIEW_PREFERENCE_KEY -> state.useWebView = settings.getBoolean(key, false)
                 ANSWER_DOUBLE_TAP_ACTION_PREFERENCE_KEY -> {
                     state.answerDoubleTapAction = settings.answerDoubleTapAction()
                 }
@@ -236,19 +254,56 @@ private fun SettingsStore.answerDoubleTapAction(): AnswerDoubleTapAction =
 @Composable
 expect fun rememberArticleHost(): ArticleHost?
 
+@Composable
+expect fun ArticleWebViewContent(
+    article: Article,
+    html: String,
+    title: String,
+    scrollState: ScrollState,
+    rememberedScrollY: Int,
+    rememberedScrollYSync: Boolean,
+    onRememberedScrollYSyncChange: (Boolean) -> Unit,
+    onImageLoadFailed: () -> Unit,
+    onDoubleTap: () -> Unit,
+)
+
 /** 过滤部分设备文本选择菜单中的非预期系统项。 */
 expect fun Modifier.articleMarkdownSelectionWorkaround(): Modifier
 
-/** 问题描述正文统一使用 Compose Markdown 渲染。 */
+/**
+ * 问题描述正文的渲染入口。
+ *
+ * 与文章和想法一致，优先遵循用户选择的 WebView/Markdown 渲染模式；当前平台不支持问题详情 WebView 时回落到 Compose Markdown。
+ */
 @Composable
-fun QuestionDetailContent(html: String) {
-    RenderMarkdown(
-        html = html,
-        modifier = Modifier.questionSelectionWorkaround(),
-        selectable = true,
-        enableScroll = false,
-    )
+fun QuestionDetailContent(
+    questionId: Long,
+    html: String,
+) {
+    if (rememberSettingsStore().getBoolean(ARTICLE_USE_WEBVIEW_PREFERENCE_KEY, false) &&
+        supportsQuestionDetailWebView()
+    ) {
+        QuestionDetailWebViewContent(
+            questionId = questionId,
+            html = html,
+        )
+    } else {
+        RenderMarkdown(
+            html = html,
+            modifier = Modifier.questionSelectionWorkaround(),
+            selectable = true,
+            enableScroll = false,
+        )
+    }
 }
+
+expect fun supportsQuestionDetailWebView(): Boolean
+
+@Composable
+expect fun QuestionDetailWebViewContent(
+    questionId: Long,
+    html: String,
+)
 
 @Composable
 expect fun rememberArticleTtsState(): TtsState
@@ -407,19 +462,6 @@ fun rememberZhihuMainPreferenceState(
     readSnapshot: () -> ZhihuMainPreferenceSnapshot,
 ): ZhihuMainPreferenceState = remember { ZhihuMainPreferenceState(readSnapshot) }
 
-/**
- * 当前平台注入 [ZhihuMain] 的导航回调。
- *
- * common UI 的所有点击都通过这个对象发起导航。平台代码负责把旧的顶层目的地映射到
- * [com.github.zly2006.zhihu.navigation.MainTabs]、记录内容打开来源，并处理视频这类平台专用目标。
- */
-data class ZhihuMainNavigationState(
-    val mainTabNavigationTarget: TopLevelDestination?,
-    val navigate: (NavDestination) -> Unit,
-    val setCurrentMainTabOpenFrom: (String?) -> Unit,
-    val consumeMainTabNavigationTarget: (TopLevelDestination) -> Unit,
-)
-
 data class AccountSettingsAccountState(
     val login: Boolean = false,
     val username: String = "",
@@ -433,22 +475,10 @@ data class AccountSettingsAccountState(
 expect fun rememberAccountSettingsAccountState(): State<AccountSettingsAccountState>
 
 @Composable
-expect fun rememberAccountProfileRefresher(): suspend () -> Unit
-
-@Composable
-expect fun rememberAccountLoginRequester(): () -> Unit
-
-@Composable
 expect fun rememberAccountQrLoginRequester(): () -> Unit
 
 @Composable
-expect fun rememberAccountLogoutAction(): () -> Unit
-
-@Composable
 expect fun rememberAppVersionInfo(): String
-
-@Composable
-expect fun rememberMainTabSelector(): (TopLevelDestination) -> Unit
 
 fun noopSettingsStore(): SettingsStore = SettingsStore(
     getBoolean = { _, defaultValue -> defaultValue },
@@ -470,34 +500,8 @@ fun noopSettingsStore(): SettingsStore = SettingsStore(
 internal const val PEOPLE_PROFILE_INCLUDE_PATH =
     "allow_message,is_followed,is_following,is_org,is_blocking,badge_v2,answer_count,follower_count,following_count,articles_count,question_count,pins_count"
 
-data class HomeAccountState(
-    val isLoggedIn: Boolean,
-    val avatarUrl: String?,
-)
-
-data class HomeUpdateAnnouncement(
-    val version: String,
-)
-
-@Composable
-expect fun rememberHomeAccountState(): HomeAccountState
-
-data class HomeFeedStartupCache(
-    val readHomeFeedStartupCache: suspend () -> List<FeedDisplayItem>,
-    val writeHomeFeedStartupCache: suspend (List<FeedDisplayItem>) -> Unit,
-)
-
-@Composable
-expect fun rememberHomeFeedStartupCache(recommendationMode: RecommendationMode): HomeFeedStartupCache
-
-@Composable
-expect fun rememberHomeUpdateAnnouncement(): HomeUpdateAnnouncement?
-
 @Composable
 expect fun rememberHomeIsDebuggable(): Boolean
-
-@Composable
-expect fun rememberHomeLoginRequester(): () -> Unit
 
 @Composable
 expect fun rememberCommentEmojiInlineContent(emojiKeys: Set<String>): Map<String, InlineTextContent>
@@ -521,9 +525,6 @@ expect fun rememberBlocklistRuleImporter(
 
 @Composable
 expect fun rememberBlocklistRuleExporter(): suspend () -> String
-
-@Composable
-expect fun rememberZhihuHttpClient(): HttpClient
 
 /**
  * 沉浸式阅读时控制系统栏（状态栏/导航栏）的显隐。

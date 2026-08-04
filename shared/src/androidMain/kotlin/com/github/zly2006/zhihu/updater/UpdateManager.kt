@@ -22,14 +22,15 @@ import android.content.Intent
 import android.util.Log
 import androidx.core.content.FileProvider
 import com.github.zly2006.zhihu.data.AccountData
-import com.github.zly2006.zhihu.shared.platform.androidSettingsStore
-import com.github.zly2006.zhihu.shared.platform.isAndroidLiteVariantPackageName
-import com.github.zly2006.zhihu.shared.updater.GithubAsset
-import com.github.zly2006.zhihu.shared.updater.GithubRelease
-import com.github.zly2006.zhihu.shared.updater.SchematicVersion
-import com.github.zly2006.zhihu.shared.updater.extractGithubReleaseNotes
-import com.github.zly2006.zhihu.shared.updater.fetchLatestZhihuRelease
+import com.github.zly2006.zhihu.platform.androidSettingsStore
+import com.github.zly2006.zhihu.platform.isAndroidLiteVariantPackageName
+import com.github.zly2006.zhihu.updater.GithubAsset
+import com.github.zly2006.zhihu.updater.GithubRelease
+import com.github.zly2006.zhihu.updater.SchematicVersion
 import com.github.zly2006.zhihu.updater.UpdateManager.UpdateState.Downloading
+import com.github.zly2006.zhihu.updater.extractGithubReleaseNotes
+import com.github.zly2006.zhihu.updater.fetchLatestZhihuRelease
+import com.github.zly2006.zhihu.updater.fetchNightlyZhihuRelease
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import kotlinx.coroutines.Dispatchers
@@ -63,6 +64,7 @@ object UpdateManager {
 
         data class UpdateAvailable(
             val version: SchematicVersion,
+            val isNightly: Boolean = false,
             val releaseNotes: String?,
             val downloadUrl: String,
             val cnDownloadUrl: String?,
@@ -148,12 +150,13 @@ object UpdateManager {
             latestVersion = latestResponse.tagName.takeIf { it.isNotBlank() }?.let { SchematicVersion.fromString(it) }
             val latestDownloadInfo = latestResponse.extractDownloadInfo(context)
 
-            if (latestVersion != null && latestVersion.isUpdateFor(currentVersion)) {
+            if (latestVersion != null && latestVersion > currentVersion) {
                 val versionString = latestVersion.toString()
                 // 检查是否是被跳过的版本
                 if (skippedVersion != versionString) {
                     updateState.value = UpdateState.UpdateAvailable(
                         latestVersion,
+                        false,
                         latestResponse.body?.let(::extractGithubReleaseNotes),
                         latestDownloadInfo.browserDownloadUrl,
                         latestDownloadInfo.cnDownloadUrl,
@@ -178,16 +181,46 @@ object UpdateManager {
             updateState.value = UpdateState.Checking
             androidSettingsStore(context).putLong(PREF_LAST_UPDATE_CHECK, System.currentTimeMillis())
 
+            val client = AccountData.httpClient(context)
             val currentVersion = SchematicVersion.fromString(context.versionName())
+            val checkNightly = androidSettingsStore(context).getBoolean("checkNightlyUpdates", false)
 
+            var latestVersion: SchematicVersion?
+            var isNightly = false
+            var releaseNotes: String?
+
+            // 检查正式版本
             val latestResponse = getLatestVersion(context)
-            val latestVersion = latestResponse.tagName.takeIf { it.isNotBlank() }?.let { SchematicVersion.fromString(it) }
-            val releaseNotes = latestResponse.body?.let(::extractGithubReleaseNotes)
-            val downloadInfo = latestResponse.extractDownloadInfo(context)
+            latestVersion = latestResponse.tagName.takeIf { it.isNotBlank() }?.let { SchematicVersion.fromString(it) }
+            releaseNotes = latestResponse.body?.let(::extractGithubReleaseNotes)
+            var downloadInfo = latestResponse.extractDownloadInfo(context)
 
-            if (latestVersion != null && latestVersion.isUpdateFor(currentVersion)) {
+            // 如果启用了nightly检查，也检查nightly版本
+            if (checkNightly) {
+                try {
+                    val nightlyResponse = fetchNightlyZhihuRelease(client, getGitHubToken(context))
+
+                    // 如果nightly版本比正式版本新，则使用nightly版本
+                    if (nightlyResponse.tagName == "nightly") {
+                        latestVersion = SchematicVersion(
+                            allComponents = listOf(999, 0, 0),
+                            preRelease = "nightly",
+                            build = "",
+                        )
+                        isNightly = true
+                        releaseNotes = nightlyResponse.body?.let(::extractGithubReleaseNotes)
+                        downloadInfo = nightlyResponse.extractDownloadInfo(context)
+                    }
+                } catch (e: Exception) {
+                    // nightly版本检查失败时，继续使用正式版本
+                    Log.e("UpdateManager", "Failed to check nightly release", e)
+                }
+            }
+
+            if (latestVersion != null && latestVersion > currentVersion) {
                 updateState.value = UpdateState.UpdateAvailable(
                     latestVersion,
+                    isNightly,
                     releaseNotes,
                     downloadInfo.browserDownloadUrl,
                     downloadInfo.cnDownloadUrl,
