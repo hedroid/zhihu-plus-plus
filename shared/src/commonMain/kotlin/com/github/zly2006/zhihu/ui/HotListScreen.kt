@@ -17,9 +17,8 @@
 
 package com.github.zly2006.zhihu.ui
 
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
@@ -27,6 +26,9 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -52,6 +54,7 @@ import com.github.zly2006.zhihu.viewmodel.rememberPaginationEnvironment
 
 const val HOT_LIST_LIST_TAG = "hot_list_list"
 const val HOT_LIST_REFRESH_BUTTON_TAG = "hot_list_refresh_button"
+const val HOT_LIST_TITLE_TAG = "hot_list_title"
 
 /**
  * 热榜页面。
@@ -109,15 +112,35 @@ fun HotListScreen(
         }
     }
 
-    Column {
-        FeedPullToRefresh(viewModel, environment) {
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = "热榜",
+                        modifier = Modifier.testTag(HOT_LIST_TITLE_TAG),
+                    )
+                },
+            )
+        },
+    ) { scaffoldPadding ->
+        FeedPullToRefresh(
+            viewModel = viewModel,
+            environment = environment,
+            padding = PaddingValues(top = scaffoldPadding.calculateTopPadding()),
+        ) {
             PaginatedList(
                 items = viewModel.displayItems,
                 listState = listState,
                 onLoadMore = { onTestLoadMore?.invoke() ?: viewModel.loadMore(environment) },
                 modifier = Modifier
-                    .padding(innerPadding)
+                    .fillMaxSize()
                     .testTag(HOT_LIST_LIST_TAG),
+                contentPadding = PaddingValues(
+                    top = scaffoldPadding.calculateTopPadding(),
+                    bottom = innerPadding.calculateBottomPadding(),
+                ),
                 isEnd = { viewModel.isEnd },
                 footer = ProgressIndicatorFooter,
             ) { item ->
