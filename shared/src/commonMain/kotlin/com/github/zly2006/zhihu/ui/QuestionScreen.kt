@@ -422,9 +422,9 @@ private fun QuestionHeaderSection(
                 horizontalArrangement = Arrangement.spacedBy(16.dp), // 水平间距
                 verticalArrangement = Arrangement.spacedBy(8.dp), // 垂直间距
             ) {
-                StatItem(icon = Icons.Outlined.Visibility, text = "$visitCount 浏览")
-                StatItem(icon = Icons.Outlined.ChatBubbleOutline, text = "$commentCount 评论")
-                StatItem(icon = Icons.Outlined.FavoriteBorder, text = "$followerCount 关注")
+                StatItem(icon = Icons.Outlined.Visibility, text = "${formatCompactCount(visitCount)} 浏览")
+                StatItem(icon = Icons.Outlined.ChatBubbleOutline, text = "${formatCompactCount(commentCount)} 评论")
+                StatItem(icon = Icons.Outlined.FavoriteBorder, text = "${formatCompactCount(followerCount)} 关注")
             }
             OutlinedButton(
                 onClick = onShowComments,
