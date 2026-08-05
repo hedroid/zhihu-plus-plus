@@ -18,39 +18,40 @@
 package com.github.zly2006.zhihu.ui
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Comment
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
@@ -60,12 +61,13 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -81,21 +83,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
-import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Constraints
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fleeksoft.ksoup.Ksoup
@@ -123,7 +117,6 @@ import com.github.zly2006.zhihu.viewmodel.addReadHistory
 import com.github.zly2006.zhihu.viewmodel.feed.QuestionFeedViewModel
 import com.github.zly2006.zhihu.viewmodel.rememberPaginationEnvironment
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 
 const val QUESTION_SCREEN_LIST_TAG = "question_screen_list"
 const val QUESTION_TITLE_TAG = "question_title"
@@ -137,10 +130,6 @@ const val QUESTION_VIEW_LOG_BUTTON_TAG = "question_view_log_button"
 const val QUESTION_SHARE_BUTTON_TAG = "question_share_button"
 const val QUESTION_WRITE_ANSWER_BUTTON_TAG = "question_write_answer_button"
 const val QUESTION_COMMENTS_BUTTON_TAG = "question_comments_button"
-private const val QUESTION_DETAIL_COLLAPSE_THRESHOLD = 100
-private val QUESTION_DETAIL_COLLAPSED_MAX_HEIGHT: Dp = 180.dp
-private val QUESTION_DETAIL_MASK_HEIGHT: Dp = 88.dp
-private val QUESTION_DETAIL_TOGGLE_ZONE_HEIGHT: Dp = 56.dp
 const val QUESTION_STATS_TAG = "question_stats"
 
 private suspend fun loadQuestion(
@@ -165,7 +154,7 @@ private suspend fun loadQuestion(
  * 顶部展示问题标题、描述、关注状态和统计信息，主体是该问题下回答的信息流列表。页面会记录内容打开来源和历史记录， 并复用文章/回答卡片、评论底部表单和分享入口；正文描述同样受
  * WebView/Markdown 渲染设置影响。
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun QuestionScreen(
     question: Question,
@@ -197,9 +186,14 @@ fun QuestionScreen(
     var showShareDialog by remember { mutableStateOf(false) }
     val userMessages = rememberUserMessageSink()
     var isQuestionDetailExpanded by rememberSaveable(question.questionId) { mutableStateOf(false) }
+    var topics by remember(question.questionId) { mutableStateOf(emptyList<DataHolder.Topic>()) }
     val scope = rememberCoroutineScope()
-    val questionContentPlainText =
-        remember(questionContent) { Ksoup.parse(questionContent).text().trim() }
+    val questionContentPreview = remember(questionContent) {
+        val document = Ksoup.parse(questionContent)
+        document.text().trim().ifEmpty {
+            "[图片]".takeIf { document.select("img").isNotEmpty() }.orEmpty()
+        }
+    }
     val shareText = getShareText(question, title)
     val topBarTitleThresholdPx = with(LocalDensity.current) { 160.dp.roundToPx() }
     val showTopBarTitle by remember {
@@ -223,6 +217,7 @@ fun QuestionScreen(
                 commentCount = questionData.commentCount
                 followerCount = questionData.followerCount
                 isFollowing = questionData.relationship.isFollowing
+                topics = questionData.topics
             } else {
                 userMessages.showShortMessage("获取问题详情失败")
             }
@@ -253,6 +248,83 @@ fun QuestionScreen(
                 canShare = shareText != null,
             )
         },
+        bottomBar = {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding(),
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                    shape = RoundedCornerShape(28.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    tonalElevation = 6.dp,
+                    shadowElevation = 6.dp,
+                ) {
+                    Row(
+                        modifier = Modifier.padding(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Button(
+                            onClick = {
+                                navigator.onNavigate(
+                                    WriteAnswer(
+                                        questionId = question.questionId,
+                                        questionTitle = title,
+                                        questionDetail = questionContent,
+                                    ),
+                                )
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 40.dp)
+                                .testTag(QUESTION_WRITE_ANSWER_BUTTON_TAG),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp),
+                        ) {
+                            Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(2.dp))
+                            Text("写回答", maxLines = 1, style = MaterialTheme.typography.labelLarge)
+                        }
+                        FilledTonalButton(
+                            onClick = {
+                                scope.launch {
+                                    val nextFollowing = !isFollowing
+                                    viewModel.followQuestion(paginationEnvironment, nextFollowing)
+                                    isFollowing = nextFollowing
+                                    followerCount = (followerCount + if (isFollowing) 1 else -1).coerceAtLeast(0)
+                                    userMessages.showShortMessage(if (isFollowing) "已关注问题" else "已取消关注问题")
+                                }
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 40.dp)
+                                .testTag(QUESTION_FOLLOW_BUTTON_TAG)
+                                .semantics { selected = isFollowing },
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp),
+                            colors = if (isFollowing) {
+                                ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                                )
+                            } else {
+                                ButtonDefaults.filledTonalButtonColors()
+                            },
+                        ) {
+                            Icon(
+                                Icons.Filled.Add,
+                                contentDescription = if (isFollowing) "取消关注" else "关注问题",
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Spacer(Modifier.width(2.dp))
+                            Text(if (isFollowing) "已关注" else "关注问题", style = MaterialTheme.typography.labelLarge)
+                        }
+                    }
+                }
+            }
+        },
     ) { innerPadding ->
         FeedPullToRefresh(
             viewModel,
@@ -272,7 +344,9 @@ fun QuestionScreen(
                 topContent = {
                     item {
                         Column(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
                             verticalArrangement = Arrangement.spacedBy(16.dp),
                         ) {
                             QuestionHeaderSection(
@@ -283,37 +357,160 @@ fun QuestionScreen(
                                 onShowComments = { showComments = true },
                             )
                             if (questionContent.isNotEmpty()) {
-                                QuestionAnimatedBodyHeader(
-                                    questionId = question.questionId,
-                                    questionContent = questionContent,
-                                    questionContentPlainText = questionContentPlainText,
-                                    isExpanded = isQuestionDetailExpanded,
-                                    onToggleExpanded = { isQuestionDetailExpanded = !isQuestionDetailExpanded },
-                                    isFollowing = isFollowing,
-                                    onFollowClick = {
-                                        scope.launch {
-                                            val nextFollowing = !isFollowing
-                                            viewModel.followQuestion(paginationEnvironment, nextFollowing)
-                                            isFollowing = nextFollowing
-                                            followerCount = (followerCount + if (isFollowing) 1 else -1).coerceAtLeast(0)
-                                            userMessages.showShortMessage(if (isFollowing) "已关注问题" else "已取消关注问题")
-                                        }
-                                    },
-                                    onWriteAnswerClick = {
-                                        navigator.onNavigate(
-                                            WriteAnswer(
+                                Column {
+                                    AnimatedVisibility(
+                                        visible = isQuestionDetailExpanded,
+                                        enter = fadeIn() + expandVertically(expandFrom = Alignment.Top),
+                                        exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Top),
+                                    ) {
+                                        Column(modifier = Modifier.testTag(QUESTION_DETAIL_CONTENT_TAG)) {
+                                            QuestionDetailContent(
                                                 questionId = question.questionId,
-                                                questionTitle = title,
-                                                questionDetail = questionContent,
-                                            ),
+                                                html = questionContent,
+                                            )
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.Start,
+                                            ) {
+                                                TextButton(
+                                                    onClick = { isQuestionDetailExpanded = false },
+                                                    modifier = Modifier.testTag(QUESTION_DETAIL_TOGGLE_TAG),
+                                                ) {
+                                                    Icon(Icons.Filled.ExpandLess, contentDescription = null)
+                                                    Spacer(Modifier.width(4.dp))
+                                                    Text("收起")
+                                                }
+                                            }
+                                        }
+                                    }
+                                    AnimatedVisibility(
+                                        visible = !isQuestionDetailExpanded && questionContentPreview.isNotEmpty(),
+                                        enter = fadeIn() + expandVertically(expandFrom = Alignment.Top),
+                                        exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Top),
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable { isQuestionDetailExpanded = true }
+                                                .testTag(QUESTION_DETAIL_TOGGLE_TAG),
+                                        ) {
+                                            Text(
+                                                text = questionContentPreview,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .testTag(QUESTION_DETAIL_PREVIEW_TAG),
+                                                style = MaterialTheme.typography.bodyLarge,
+                                                maxLines = 3,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                        }
+                                    }
+                                    if (topics.isNotEmpty()) {
+                                        FlowRow(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(top = 16.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                                        ) {
+                                            topics.forEach { topic ->
+                                                Surface(
+                                                    shape = RoundedCornerShape(50),
+                                                    color = MaterialTheme.colorScheme.surface,
+                                                    border = BorderStroke(
+                                                        1.dp,
+                                                        MaterialTheme.colorScheme.outlineVariant,
+                                                    ),
+                                                ) {
+                                                    Text(
+                                                        text = topic.name,
+                                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    stickyHeader(key = "question_sort_header") {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = MaterialTheme.colorScheme.surface,
+                            shadowElevation = 0.dp,
+                        ) {
+                            Column {
+                                HorizontalDivider(
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                                )
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    TextButton(
+                                        onClick = {
+                                            viewModel.updateSortOrder("default")
+                                            viewModel.refresh(paginationEnvironment)
+                                        },
+                                        modifier = Modifier
+                                            .testTag(QUESTION_SORT_DEFAULT_TAG)
+                                            .semantics { selected = viewModel.sortOrder == "default" },
+                                        colors = ButtonDefaults.textButtonColors(
+                                            contentColor = if (viewModel.sortOrder == "default") {
+                                                MaterialTheme.colorScheme.primary
+                                            } else {
+                                                MaterialTheme.colorScheme.onSurfaceVariant
+                                            },
+                                        ),
+                                    ) {
+                                        Text(
+                                            "默认",
+                                            fontWeight = if (viewModel.sortOrder == "default") {
+                                                FontWeight.Bold
+                                            } else {
+                                                FontWeight.Normal
+                                            },
                                         )
-                                    },
-                                    answerCount = answerCount,
-                                    currentSort = viewModel.sortOrder,
-                                    onSortChange = { sortOrder ->
-                                        viewModel.updateSortOrder(sortOrder)
-                                        viewModel.refresh(paginationEnvironment)
-                                    },
+                                    }
+                                    TextButton(
+                                        onClick = {
+                                            viewModel.updateSortOrder("updated")
+                                            viewModel.refresh(paginationEnvironment)
+                                        },
+                                        modifier = Modifier
+                                            .testTag(QUESTION_SORT_UPDATED_TAG)
+                                            .semantics { selected = viewModel.sortOrder == "updated" },
+                                        colors = ButtonDefaults.textButtonColors(
+                                            contentColor = if (viewModel.sortOrder == "updated") {
+                                                MaterialTheme.colorScheme.primary
+                                            } else {
+                                                MaterialTheme.colorScheme.onSurfaceVariant
+                                            },
+                                        ),
+                                    ) {
+                                        Text(
+                                            "最新",
+                                            fontWeight = if (viewModel.sortOrder == "updated") {
+                                                FontWeight.Bold
+                                            } else {
+                                                FontWeight.Normal
+                                            },
+                                        )
+                                    }
+                                    Spacer(Modifier.weight(1f))
+                                    Text(
+                                        "全部内容 ${formatCompactCount(answerCount)}",
+                                        modifier = Modifier.padding(end = 8.dp),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                    )
+                                }
+                                HorizontalDivider(
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
                                 )
                             }
                         }
@@ -434,336 +631,6 @@ private fun QuestionHeaderSection(
                 Spacer(Modifier.width(8.dp))
                 Text("$commentCount")
             }
-        }
-    }
-}
-
-@Composable
-private fun QuestionAnimatedBodyHeader(
-    questionId: Long,
-    questionContent: String,
-    questionContentPlainText: String,
-    isExpanded: Boolean,
-    onToggleExpanded: () -> Unit,
-    isFollowing: Boolean,
-    onFollowClick: () -> Unit,
-    onWriteAnswerClick: () -> Unit,
-    answerCount: Int,
-    currentSort: String,
-    onSortChange: (String) -> Unit,
-) {
-    val allowDetailCollapse =
-        questionContentPlainText.length >= QUESTION_DETAIL_COLLAPSE_THRESHOLD || questionContent.contains("<img")
-    val density = LocalDensity.current
-    val sectionSpacingPx = with(density) { 16.dp.roundToPx() }
-    val collapsedViewportHeightPx = with(density) { QUESTION_DETAIL_COLLAPSED_MAX_HEIGHT.roundToPx() }
-    var fullViewportHeightPx by remember(questionId) { mutableIntStateOf(0) }
-    var animationInitialized by remember(questionId) { mutableStateOf(false) }
-    val animatedViewportHeightPx = remember(questionId) { Animatable(collapsedViewportHeightPx.toFloat()) }
-    val animationSpec = remember { tween<Float>(durationMillis = 420, easing = FastOutSlowInEasing) }
-
-    LaunchedEffect(questionId) {
-        animationInitialized = false
-        animatedViewportHeightPx.snapTo(collapsedViewportHeightPx.toFloat())
-    }
-    LaunchedEffect(isExpanded, fullViewportHeightPx, collapsedViewportHeightPx) {
-        if (!allowDetailCollapse || fullViewportHeightPx <= 0) return@LaunchedEffect
-        val collapsedTarget = collapsedViewportHeightPx.coerceAtMost(fullViewportHeightPx).toFloat()
-        val targetHeight = if (isExpanded) fullViewportHeightPx.toFloat() else collapsedTarget
-        if (!animationInitialized) {
-            animationInitialized = true
-            animatedViewportHeightPx.snapTo(targetHeight)
-            return@LaunchedEffect
-        }
-        if ((animatedViewportHeightPx.value - targetHeight).let { if (it < 0f) -it else it } < 0.5f) {
-            return@LaunchedEffect
-        }
-        animatedViewportHeightPx.animateTo(targetValue = targetHeight, animationSpec = animationSpec)
-    }
-
-    val collapsedTargetPx = collapsedViewportHeightPx.coerceAtMost(fullViewportHeightPx).toFloat()
-    val expandedRangePx = (fullViewportHeightPx.toFloat() - collapsedTargetPx).coerceAtLeast(1f)
-    val expandProgress =
-        if (!allowDetailCollapse || fullViewportHeightPx <= 0) {
-            1f
-        } else {
-            ((animatedViewportHeightPx.value - collapsedTargetPx) / expandedRangePx).coerceIn(0f, 1f)
-        }
-    val viewportHeightPx =
-        if (allowDetailCollapse) {
-            animatedViewportHeightPx.value.roundToInt()
-        } else {
-            fullViewportHeightPx
-        }
-
-    SubcomposeLayout(modifier = Modifier.fillMaxWidth()) { constraints ->
-        val looseConstraints =
-            constraints.copy(
-                minWidth = 0,
-                minHeight = 0,
-                maxHeight = Constraints.Infinity,
-            )
-        val detailPlaceable =
-            subcompose("detail") {
-                if (allowDetailCollapse) {
-                    QuestionDetailAnimatedViewport(
-                        questionId = questionId,
-                        questionContent = questionContent,
-                        viewportHeightPx = viewportHeightPx,
-                        isExpanded = isExpanded,
-                        overlayAlpha = 1f - expandProgress,
-                        onToggleExpanded = onToggleExpanded,
-                        onMeasuredFullHeight = { fullViewportHeightPx = it },
-                    )
-                } else {
-                    QuestionDetailStaticContent(
-                        questionId = questionId,
-                        questionContent = questionContent,
-                        onMeasuredHeight = { fullViewportHeightPx = it },
-                    )
-                }
-            }.single().measure(looseConstraints)
-        val controlsPlaceable =
-            subcompose("controls") {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    QuestionPrimaryActions(
-                        isFollowing = isFollowing,
-                        onFollowClick = onFollowClick,
-                        onWriteAnswerClick = onWriteAnswerClick,
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = "${formatCompactCount(answerCount)} 回答",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Medium,
-                        )
-                        Spacer(Modifier.weight(1f))
-                        FilterChip(
-                            selected = currentSort == "default",
-                            onClick = { onSortChange("default") },
-                            modifier =
-                                Modifier.testTag(QUESTION_SORT_DEFAULT_TAG).semantics {
-                                    selected = currentSort == "default"
-                                },
-                            label = { Text("默认") },
-                        )
-                        FilterChip(
-                            selected = currentSort == "updated",
-                            onClick = { onSortChange("updated") },
-                            modifier =
-                                Modifier.testTag(QUESTION_SORT_UPDATED_TAG).semantics {
-                                    selected = currentSort == "updated"
-                                },
-                            label = { Text("最新") },
-                        )
-                    }
-                }
-            }.single().measure(looseConstraints)
-        val totalHeight = detailPlaceable.height + sectionSpacingPx + controlsPlaceable.height
-        layout(width = constraints.maxWidth, height = totalHeight) {
-            detailPlaceable.place(0, 0)
-            controlsPlaceable.place(0, detailPlaceable.height + sectionSpacingPx)
-        }
-    }
-}
-
-@Composable
-private fun QuestionDetailStaticContent(
-    questionId: Long,
-    questionContent: String,
-    onMeasuredHeight: (Int) -> Unit,
-) {
-    SubcomposeLayout(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .testTag(QUESTION_DETAIL_CONTENT_TAG),
-    ) { constraints ->
-        val placeable =
-            subcompose("static_detail") {
-                QuestionDetailContent(questionId = questionId, html = questionContent)
-            }.single().measure(
-                constraints.copy(
-                    minWidth = 0,
-                    minHeight = 0,
-                    maxHeight = Constraints.Infinity,
-                ),
-            )
-        if (placeable.height > 0) {
-            onMeasuredHeight(placeable.height)
-        }
-        layout(width = constraints.maxWidth, height = placeable.height) {
-            placeable.place(0, 0)
-        }
-    }
-}
-
-@Composable
-private fun QuestionDetailAnimatedViewport(
-    questionId: Long,
-    questionContent: String,
-    viewportHeightPx: Int,
-    isExpanded: Boolean,
-    overlayAlpha: Float,
-    onToggleExpanded: () -> Unit,
-    onMeasuredFullHeight: (Int) -> Unit,
-) {
-    val maskHeightPx = with(LocalDensity.current) { QUESTION_DETAIL_MASK_HEIGHT.roundToPx() }
-    val buttonZoneHeightPx = with(LocalDensity.current) { QUESTION_DETAIL_TOGGLE_ZONE_HEIGHT.roundToPx() }
-    SubcomposeLayout(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .clipToBounds()
-                .testTag(if (isExpanded) QUESTION_DETAIL_CONTENT_TAG else QUESTION_DETAIL_PREVIEW_TAG),
-    ) { constraints ->
-        val looseConstraints =
-            constraints.copy(
-                minWidth = 0,
-                minHeight = 0,
-                maxHeight = Constraints.Infinity,
-            )
-        val contentPlaceable =
-            subcompose("content") {
-                Box(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = QUESTION_DETAIL_TOGGLE_ZONE_HEIGHT),
-                ) {
-                    QuestionDetailContent(questionId = questionId, html = questionContent)
-                }
-            }.single().measure(looseConstraints)
-        if (contentPlaceable.height > 0) {
-            onMeasuredFullHeight(contentPlaceable.height)
-        }
-        val layoutHeight = viewportHeightPx.coerceIn(0, contentPlaceable.height.coerceAtLeast(0))
-        val buttonPlaceable =
-            subcompose("button") {
-                QuestionDetailToggleButton(
-                    isExpanded = isExpanded,
-                    onClick = onToggleExpanded,
-                )
-            }.single().measure(looseConstraints)
-        val overlayPlaceable =
-            subcompose("overlay") {
-                QuestionDetailOverlayMask(
-                    alpha = overlayAlpha,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }.single().measure(
-                Constraints(
-                    minWidth = constraints.maxWidth,
-                    maxWidth = constraints.maxWidth,
-                    minHeight = 0,
-                    maxHeight = layoutHeight.coerceAtLeast(0),
-                ),
-            )
-        layout(width = constraints.maxWidth, height = layoutHeight) {
-            contentPlaceable.place(0, 0)
-            if (overlayAlpha > 0f) {
-                overlayPlaceable.place(0, (layoutHeight - minOf(maskHeightPx, overlayPlaceable.height)).coerceAtLeast(0))
-            }
-            val buttonY = (layoutHeight - buttonZoneHeightPx + (buttonZoneHeightPx - buttonPlaceable.height) / 2).coerceAtLeast(0)
-            val buttonX = (constraints.maxWidth - buttonPlaceable.width).coerceAtLeast(0)
-            buttonPlaceable.place(buttonX, buttonY)
-        }
-    }
-}
-
-@Composable
-private fun QuestionDetailOverlayMask(alpha: Float, modifier: Modifier = Modifier) {
-    val surfaceColor = MaterialTheme.colorScheme.surface
-    Box(
-        modifier =
-            modifier
-                .height(QUESTION_DETAIL_MASK_HEIGHT)
-                .graphicsLayer { this.alpha = alpha }
-                .blur(12.dp)
-                .background(
-                    brush =
-                        Brush.verticalGradient(
-                            listOf(
-                                Color.Transparent,
-                                surfaceColor.copy(alpha = 0.7f),
-                                surfaceColor,
-                            ),
-                        ),
-                ),
-    )
-}
-
-@Composable
-private fun QuestionDetailToggleButton(
-    isExpanded: Boolean,
-    onClick: () -> Unit,
-) {
-    TextButton(
-        onClick = onClick,
-        modifier =
-            Modifier
-                .offset(y = 4.dp)
-                .padding(end = 4.dp, bottom = 0.dp)
-                .testTag(QUESTION_DETAIL_TOGGLE_TAG),
-    ) {
-        Icon(
-            imageVector = if (isExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-            contentDescription = null,
-        )
-        Spacer(Modifier.width(4.dp))
-        Text(if (isExpanded) "收起详情" else "展开详情")
-    }
-}
-
-@Composable
-private fun QuestionPrimaryActions(
-    isFollowing: Boolean,
-    onFollowClick: () -> Unit,
-    onWriteAnswerClick: () -> Unit,
-) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Button(
-            onClick = onWriteAnswerClick,
-            modifier = Modifier.weight(1f).testTag(QUESTION_WRITE_ANSWER_BUTTON_TAG),
-            colors =
-                ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                ),
-        ) {
-            Icon(Icons.Filled.Edit, contentDescription = "写回答")
-            Spacer(Modifier.width(8.dp))
-            Text("写回答")
-        }
-        FilledTonalButton(
-            onClick = onFollowClick,
-            modifier =
-                Modifier.weight(1f).testTag(QUESTION_FOLLOW_BUTTON_TAG).semantics {
-                    selected = isFollowing
-                },
-            colors =
-                if (isFollowing) {
-                    ButtonDefaults.filledTonalButtonColors(
-                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                    )
-                } else {
-                    ButtonDefaults.filledTonalButtonColors()
-                },
-        ) {
-            Icon(
-                imageVector = if (isFollowing) Icons.Filled.Check else Icons.Filled.Add,
-                contentDescription = if (isFollowing) "取消关注" else "关注问题",
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(if (isFollowing) "已关注" else "关注问题")
         }
     }
 }
