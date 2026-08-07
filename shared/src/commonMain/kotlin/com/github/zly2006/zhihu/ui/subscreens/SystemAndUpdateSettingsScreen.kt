@@ -94,7 +94,7 @@ const val SYSTEM_SETTINGS_AIGC_MARKING_TAG = "system_settings_aigc_marking"
 /**
  * 系统、更新和外部服务设置页。
  *
- * 页面展示更新横幅、下载/安装/跳过版本操作、GitHub Token、自动检查更新、Nightly、遥测、防沉迷提醒和社区链接。
+ * 页面展示更新横幅、下载/安装/跳过版本操作、GitHub Token、正式版与 Nightly 更新设置、AIGC 标记、防沉迷提醒和社区链接。
  * 更新相关状态由平台 [SystemUpdateRuntime] 提供，防沉迷间隔写入 [CONTINUOUS_USAGE_REMINDER_INTERVAL_MINUTES_KEY]，
  * 改动时要同时考虑 Android 更新管理器和 Desktop 运行时。
  */
@@ -193,12 +193,12 @@ fun SystemAndUpdateSettingsScreen() {
                                     SelectionContainer {
                                         Text(
                                             buildAnnotatedString {
-                                                val prRegex = Regex("https://github.com/zly2006/zhihu-plus-plus/pull/(\\d+)")
+                                                val prRegex = Regex("https://github.com/hedroid/zhihu-plus-plus/pull/(\\d+)")
                                                 var lastIndex = 0
                                                 prRegex.findAll(releaseNotes!!).forEach { matchResult ->
                                                     append(releaseNotes!!.substring(lastIndex, matchResult.range.first))
                                                     val prNumber = matchResult.groupValues[1]
-                                                    withLink(LinkAnnotation.Url("https://github.com/zly2006/zhihu-plus-plus/pull/$prNumber")) {
+                                                    withLink(LinkAnnotation.Url("https://github.com/hedroid/zhihu-plus-plus/pull/$prNumber")) {
                                                         withStyle(
                                                             MaterialTheme.typography.bodyMedium
                                                                 .copy(color = MaterialTheme.colorScheme.primary)
@@ -217,7 +217,7 @@ fun SystemAndUpdateSettingsScreen() {
                                     }
                                     Spacer(modifier = Modifier.height(12.dp))
                                     TextButton(
-                                        onClick = { openExternalUrl("https://github.com/zly2006/zhihu-plus-plus/releases") },
+                                        onClick = { openExternalUrl("https://github.com/hedroid/zhihu-plus-plus/releases") },
                                         modifier = Modifier.align(Alignment.End),
                                     ) {
                                         Text("查看完整更新日志")
@@ -344,22 +344,11 @@ fun SystemAndUpdateSettingsScreen() {
                 var checkNightlyUpdates by remember { mutableStateOf(settings.getBoolean("checkNightlyUpdates", false)) }
                 SettingItemWithSwitch(
                     title = { Text("检查 Nightly 版本更新") },
-                    description = { Text("检查每日构建版本 (可能不稳定)") },
+                    description = { Text("同时检查 Hedroid 每日构建版本，可能不稳定") },
                     checked = checkNightlyUpdates,
                     onCheckedChange = {
                         checkNightlyUpdates = it
                         settings.putBoolean("checkNightlyUpdates", it)
-                    },
-                )
-
-                var allowTelemetry by remember { mutableStateOf(settings.getBoolean("allowTelemetry", true)) }
-                SettingItemWithSwitch(
-                    title = { Text("允许发送遥测统计数据") },
-                    description = { Text("仅用于统计使用人数，不包含个人隐私") },
-                    checked = allowTelemetry,
-                    onCheckedChange = {
-                        allowTelemetry = it
-                        settings.putBoolean("allowTelemetry", it)
                     },
                 )
 
@@ -522,7 +511,7 @@ fun SystemAndUpdateSettingsScreen() {
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     },
-                    onClick = { openExternalUrl("https://github.com/zly2006/zhihu-plus-plus/issues") },
+                    onClick = { openExternalUrl("https://github.com/hedroid/zhihu-plus-plus/issues") },
                 )
             }
         }

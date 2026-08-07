@@ -133,6 +133,7 @@ import com.github.zly2006.zhihu.ui.subscreens.ContentFilterSettingsScreen
 import com.github.zly2006.zhihu.ui.subscreens.DeveloperSettingsScreen
 import com.github.zly2006.zhihu.ui.subscreens.IdentityManagementScreen
 import com.github.zly2006.zhihu.ui.subscreens.OpenSourceLicensesScreen
+import com.github.zly2006.zhihu.ui.subscreens.ProjectLicenseScreen
 import com.github.zly2006.zhihu.ui.subscreens.ReadingSettingsScreen
 import com.github.zly2006.zhihu.ui.subscreens.SystemAndUpdateSettingsScreen
 import kotlinx.coroutines.delay
@@ -655,6 +656,9 @@ fun ZhihuMain(
                     }
                     composable<Account.ReadingSettings> {
                         ReadingSettingsScreen()
+                    }
+                    composable<Account.ProjectLicense> {
+                        ProjectLicenseScreen()
                     }
                     composable<Account.OpenSourceLicenses> {
                         OpenSourceLicensesScreen()

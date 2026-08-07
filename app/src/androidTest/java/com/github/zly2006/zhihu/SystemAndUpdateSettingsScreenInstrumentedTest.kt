@@ -20,6 +20,7 @@ package com.github.zly2006.zhihu
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasClickAction
@@ -151,19 +152,25 @@ class SystemAndUpdateSettingsScreenInstrumentedTest {
     }
 
     @Test
-    fun updateToggleRemainsStableAfterSwipeCycleAndSemanticsScrolls() {
-        // This test flips the remaining update toggle through the settings screen itself, performs
+    fun updateTogglesRemainStableAfterSwipeCycleAndSemanticsScrolls() {
+        // This test flips both update toggles through the settings screen itself, performs
         // both gesture-based and semantics-based scrolling, and then verifies that the final
-        // persisted value still matches the exact toggle the user selected.
+        // persisted values still match the exact toggles the user selected. Telemetry must not
+        // leave a settings entry behind after its runtime implementation is removed.
         UpdateManager.setAutoCheckEnabled(composeRule.activity, false)
+        preferences.edit().putBoolean("checkNightlyUpdates", false).commit()
         setUpScreen()
         val scrollContainer = scrollContainer()
 
         waitUntilDisplayed(hasText("自动检查更新"))
         assertFalse(UpdateManager.isAutoCheckEnabled(composeRule.activity))
+        assertFalse(preferences.getBoolean("checkNightlyUpdates", false))
+        composeRule.onNodeWithText("允许发送遥测统计数据").assertDoesNotExist()
 
         clickSettingRow("自动检查更新")
         waitUntil(timeoutMillis = 5_000) { UpdateManager.isAutoCheckEnabled(composeRule.activity) }
+        clickSettingRow("检查 Nightly 版本更新")
+        waitUntil(timeoutMillis = 5_000) { preferences.getBoolean("checkNightlyUpdates", false) }
 
         scrollContainer.performVerticalSwipeCycle()
         scrollContainer.performScrollToNode(hasText("Github issue"))
@@ -171,7 +178,9 @@ class SystemAndUpdateSettingsScreenInstrumentedTest {
 
         scrollContainer.performScrollToNode(hasText("自动检查更新"))
         composeRule.onNodeWithText("自动检查更新").assertIsDisplayed()
+        composeRule.onNodeWithText("检查 Nightly 版本更新").assertIsDisplayed()
         assertTrue(UpdateManager.isAutoCheckEnabled(composeRule.activity))
+        assertTrue(preferences.getBoolean("checkNightlyUpdates", false))
     }
 
     private fun setUpScreen() = composeRule.setScreenContent {

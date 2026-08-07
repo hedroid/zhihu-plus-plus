@@ -5,6 +5,15 @@ on:
     tags:
       - '*'
   workflow_dispatch:
+    inputs:
+      release_channel:
+        description: 'Release channel'
+        required: true
+        default: release
+        type: choice
+        options:
+          - release
+          - nightly
 
 permissions:
   contents: write
@@ -12,9 +21,10 @@ permissions:
 jobs:
   release:
     uses: ./.github/workflows/my-build-action.yml
-    if: startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     with:
-      name: 'Release'
-      release: true
+      name: ${{ inputs.release_channel == 'nightly' && 'Nightly' || 'Release' }}
+      release: ${{ startsWith(github.ref, 'refs/tags/') && inputs.release_channel != 'nightly' }}
+      nightly_release: ${{ github.event_name == 'workflow_dispatch' && inputs.release_channel == 'nightly' }}
       minify: true
     secrets: inherit
