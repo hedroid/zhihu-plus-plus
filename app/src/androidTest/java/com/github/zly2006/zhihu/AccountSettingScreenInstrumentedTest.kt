@@ -48,6 +48,7 @@ import com.github.zly2006.zhihu.ui.ACCOUNT_SETTINGS_DEVELOPER_TAG
 import com.github.zly2006.zhihu.ui.ACCOUNT_SETTINGS_LICENSES_TAG
 import com.github.zly2006.zhihu.ui.ACCOUNT_SETTINGS_LOGIN_ITEM_TAG
 import com.github.zly2006.zhihu.ui.ACCOUNT_SETTINGS_PROFILE_HEADER_TAG
+import com.github.zly2006.zhihu.ui.ACCOUNT_SETTINGS_PROJECT_LICENSE_TAG
 import com.github.zly2006.zhihu.ui.ACCOUNT_SETTINGS_RECOMMEND_TAG
 import com.github.zly2006.zhihu.ui.ACCOUNT_SETTINGS_SCROLL_TAG
 import com.github.zly2006.zhihu.ui.ACCOUNT_SETTINGS_SHORTCUT_COLLECTIONS_TAG
@@ -121,7 +122,7 @@ class AccountSettingScreenInstrumentedTest {
         // Expected behavior:
         // 1. The always-available local settings rows must navigate to their corresponding account
         //    sub-destinations in a deterministic order: appearance, recommendation, system/update,
-        //    and open-source licenses.
+        //    project license, and open-source licenses.
         // 2. Reaching the about section should rely on scroll semantics from the tagged scroll
         //    container instead of raw coordinates, so the test remains stable on different devices.
         // 3. A forward-and-reverse swipe cycle plus an explicit scroll back to the top should leave
@@ -134,16 +135,18 @@ class AccountSettingScreenInstrumentedTest {
         composeRule.onNodeWithTag(ACCOUNT_SETTINGS_SYSTEM_TAG).assertIsDisplayed().performClick()
 
         scrollContainer().performVerticalSwipeCycle()
+        composeRule.onNodeWithTag(ACCOUNT_SETTINGS_PROJECT_LICENSE_TAG).assertIsDisplayed().performClick()
         composeRule.onNodeWithTag(ACCOUNT_SETTINGS_LICENSES_TAG).assertIsDisplayed().performClick()
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
-            navigator.destinations.size == 4
+            navigator.destinations.size == 5
         }
         assertEquals(
             listOf(
                 Account.AppearanceSettings(),
                 Account.RecommendSettings(),
                 Account.SystemAndUpdateSettings,
+                Account.ProjectLicense,
                 Account.OpenSourceLicenses,
             ),
             navigator.destinations,

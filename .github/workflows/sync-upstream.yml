@@ -5,13 +5,17 @@ on:
     - cron: '17 20 * * *'
   workflow_dispatch:
     inputs:
-      publish_after_sync:
-        description: 'Create a release tag after syncing'
+      release_channel:
+        description: 'Publish after syncing'
         required: true
-        default: true
-        type: boolean
+        default: release
+        type: choice
+        options:
+          - none
+          - release
+          - nightly
       force_publish:
-        description: 'Create a release tag even when there are no upstream changes'
+        description: 'Publish even when there are no upstream changes'
         required: true
         default: false
         type: boolean
@@ -26,6 +30,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       changed: ${{ steps.merge.outputs.changed }}
+      new_upstream_release: ${{ steps.upstream_release.outputs.is_new }}
+      upstream_release_tag: ${{ steps.upstream_release.outputs.tag }}
     steps:
       - name: Checkout fork
         uses: actions/checkout@v4
@@ -57,14 +63,34 @@ jobs:
         if: steps.merge.outputs.changed == 'true'
         run: git push origin HEAD:master
 
+      - name: Detect new upstream release
+        id: upstream_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          upstream_tag="$(gh api repos/zly2006/zhihu-plus-plus/releases/latest --jq '.tag_name')"
+          if [ -z "$upstream_tag" ]; then
+            echo "Latest upstream release has no tag" >&2
+            exit 1
+          fi
+
+          echo "tag=$upstream_tag" >> "$GITHUB_OUTPUT"
+          if git tag --list "$upstream_tag" "$upstream_tag-*" | grep -q .; then
+            echo "is_new=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_new=true" >> "$GITHUB_OUTPUT"
+          fi
+
   publish:
-    name: Create release tag
+    name: Publish synced build
     needs: sync
     runs-on: ubuntu-latest
     if: >-
       ${{
-        github.event_name == 'schedule' && needs.sync.outputs.changed == 'true' ||
-        github.event_name == 'workflow_dispatch' && inputs.publish_after_sync && (needs.sync.outputs.changed == 'true' || inputs.force_publish)
+        github.event_name == 'schedule' &&
+          (needs.sync.outputs.changed == 'true' || needs.sync.outputs.new_upstream_release == 'true') ||
+        github.event_name == 'workflow_dispatch' && inputs.release_channel != 'none' &&
+          (needs.sync.outputs.changed == 'true' || needs.sync.outputs.new_upstream_release == 'true' || inputs.force_publish)
       }}
     steps:
       - name: Checkout synced master
@@ -78,8 +104,29 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Resolve release channel
+        id: channel
+        env:
+          REQUESTED_CHANNEL: ${{ inputs.release_channel }}
+          NEW_UPSTREAM_RELEASE: ${{ needs.sync.outputs.new_upstream_release }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
+            if [ "$NEW_UPSTREAM_RELEASE" = "true" ]; then
+              channel="release"
+            else
+              channel="nightly"
+            fi
+          else
+            channel="$REQUESTED_CHANNEL"
+          fi
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+
       - name: Create release tag
-        id: tag
+        if: steps.channel.outputs.channel == 'release'
+        id: release_tag
+        env:
+          NEW_UPSTREAM_RELEASE: ${{ needs.sync.outputs.new_upstream_release }}
+          UPSTREAM_RELEASE_TAG: ${{ needs.sync.outputs.upstream_release_tag }}
         run: |
           version_name="$(sed -n 's/^app\.versionName=//p' gradle.properties | head -n 1)"
           if [ -z "$version_name" ]; then
@@ -87,12 +134,30 @@ jobs:
             exit 1
           fi
           short_sha="$(git rev-parse --short=8 HEAD)"
-          tag="v${version_name}-${short_sha}"
-          git tag "$tag"
-          git push origin "$tag"
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          tag_prefix="v${version_name}"
+          if [ "$NEW_UPSTREAM_RELEASE" = "true" ]; then
+            tag_prefix="$UPSTREAM_RELEASE_TAG"
+          fi
+          tag="${tag_prefix}-${short_sha}"
+          if git rev-parse "refs/tags/$tag" >/dev/null 2>&1; then
+            echo "Reusing existing release tag $tag"
+          else
+            git tag "$tag"
+            git push origin "$tag"
+          fi
+          echo "ref=$tag" >> "$GITHUB_OUTPUT"
 
       - name: Dispatch Release Builds workflow
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run build.yml --repo "$GITHUB_REPOSITORY" --ref "${{ steps.tag.outputs.tag }}"
+          RELEASE_CHANNEL: ${{ steps.channel.outputs.channel }}
+          RELEASE_REF: ${{ steps.release_tag.outputs.ref }}
+        run: |
+          ref="$RELEASE_REF"
+          if [ "$RELEASE_CHANNEL" = "nightly" ]; then
+            ref="master"
+          fi
+          gh workflow run build.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "$ref" \
+            -f release_channel="$RELEASE_CHANNEL"

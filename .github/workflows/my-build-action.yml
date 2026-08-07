@@ -243,7 +243,7 @@ jobs:
             app/build/upload/mapping-lite.zip
             app/build/upload/zhihu++-full.apk
           fail_on_unmatched_files: true
-          prerelease: false
+          prerelease: true
       - name: Generate release notes
         if: ${{ inputs.release && startsWith(github.ref, 'refs/tags/') }}
         id: release_notes
