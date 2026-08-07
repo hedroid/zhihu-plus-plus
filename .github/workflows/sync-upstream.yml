@@ -75,7 +75,8 @@ jobs:
           fi
 
           echo "tag=$upstream_tag" >> "$GITHUB_OUTPUT"
-          if git tag --list "$upstream_tag" "$upstream_tag-*" | grep -q .; then
+          release_tag="v${upstream_tag#v}"
+          if git tag --list "$upstream_tag" "$upstream_tag-*" "$release_tag" "$release_tag-*" | grep -q .; then
             echo "is_new=false" >> "$GITHUB_OUTPUT"
           else
             echo "is_new=true" >> "$GITHUB_OUTPUT"
@@ -136,7 +137,7 @@ jobs:
           short_sha="$(git rev-parse --short=8 HEAD)"
           tag_prefix="v${version_name}"
           if [ "$NEW_UPSTREAM_RELEASE" = "true" ]; then
-            tag_prefix="$UPSTREAM_RELEASE_TAG"
+            tag_prefix="v${UPSTREAM_RELEASE_TAG#v}"
           fi
           tag="${tag_prefix}-${short_sha}"
           if git rev-parse "refs/tags/$tag" >/dev/null 2>&1; then
