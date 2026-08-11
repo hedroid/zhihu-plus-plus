@@ -54,6 +54,7 @@ android {
         }
         create("lite") {
             dimension = "version"
+            isDefault = true
             buildConfigField("boolean", "IS_LITE", "true")
             applicationIdSuffix = ".lite"
 //            versionNameSuffix = "-lite"

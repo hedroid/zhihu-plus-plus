@@ -20,7 +20,6 @@ package com.github.zly2006.zhihu
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.compose.ui.test.SemanticsMatcher
-import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasClickAction
