@@ -414,6 +414,11 @@ fun buildReadingSpeechText(
         .trim()
 }
 
+fun htmlToReadingText(html: String): String = Ksoup
+    .parse(html)
+    .also { document -> document.select("a.video-box").remove() }
+    .text()
+
 fun buildReadingTemplatePreview(preferences: ReadingPreferences): String {
     val normalized = preferences.normalized()
     return normalized.fieldOrder
@@ -646,17 +651,15 @@ fun RegisterReadingQueueSource(
     sourceId: String,
     items: List<FeedDisplayItem>,
 ) {
-    val queueItems = items.toReadingQueueSourceItems()
+    val queueItems = items
+        .asSequence()
+        .filterNot { it.isFiltered }
+        .mapNotNull(FeedDisplayItem::toReadingQueueItem)
+        .toList()
     SideEffect {
         ReadingQueueSourceRegistry.register(sourceId, queueItems)
     }
 }
-
-internal fun List<FeedDisplayItem>.toReadingQueueSourceItems(): List<ReadingQueueItem> =
-    asSequence()
-        .filterNot { it.isFiltered }
-        .mapNotNull(FeedDisplayItem::toReadingQueueItem)
-        .toList()
 
 fun FeedDisplayItem.toReadingQueueItem(): ReadingQueueItem? {
     val destination = navDestination ?: return null

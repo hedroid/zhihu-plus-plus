@@ -48,6 +48,21 @@ class NavDestinationTest {
     }
 
     @Test
+    fun resolvesTopicUrlsFromCommonCode() {
+        listOf(
+            "https://www.zhihu.com/topic/19550517" to Topic("19550517"),
+            "zhihu://topic/19550517" to Topic("19550517"),
+            "zhihu://pin20/topic?topic_id=19550517" to Topic("19550517"),
+            "https://www.zhihu.com/topic/19550517/hot" to Topic("19550517", section = "hot"),
+            "https://www.zhihu.com/topic/19550517/newest" to Topic("19550517", section = "newest"),
+            "https://www.zhihu.com/topic/19550517/top-answers" to Topic("19550517", section = "top-answers"),
+            "https://www.zhihu.com/topic/19550517/unanswered" to Topic("19550517", section = "unanswered"),
+        ).forEach { (url, expected) ->
+            assertEquals(expected, resolveContent(url), url)
+        }
+    }
+
+    @Test
     fun resolvesZhihuHybridUrlFromEmbeddedZhUrl() {
         val destination = resolveContent(
             "zhihu://hybrid?open=1&zh_url=https%3A%2F%2Fzhuanlan.zhihu.com%2Fp%2F703712120" +

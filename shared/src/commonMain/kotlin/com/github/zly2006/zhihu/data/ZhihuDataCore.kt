@@ -31,6 +31,7 @@ data class FeedDisplayItem(
     val authorName: String? = null,
     val authorBadgeV2: DataHolder.BadgeV2? = null,
     val isFiltered: Boolean = false,
+    val isQualityFiltered: Boolean = false,
     val content: String? = null,
     var raw: DataHolder.Content? = null,
 ) {
@@ -55,17 +56,27 @@ fun List<Feed>.flattenFeeds(): List<Feed> = flatMap {
 
 fun Feed.toDisplayItem(
     enableQualityFilter: Boolean = true,
+    reverseBlock: Boolean = false,
 ): FeedDisplayItem = when (this) {
-    is CommonFeed, is FeedItemIndexGroup, is MomentsFeed, is HotListFeed -> toTargetDisplayItem(
+    is CommonFeed, is FeedItemIndexGroup, is MomentsFeed, is HotListFeed, is TopicFeed -> toTargetDisplayItem(
         enableQualityFilter = enableQualityFilter,
+        reverseBlock = reverseBlock,
     )
 
     is AdvertisementFeed -> FeedDisplayItem(
-        title = "",
-        summary = actionText,
+        title = if (reverseBlock) {
+            ad.creatives.firstOrNull()?.title ?: ""
+        } else {
+            ""
+        },
+        summary = if (reverseBlock) {
+            ad.creatives.firstOrNull()?.description ?: actionText
+        } else {
+            actionText
+        },
         details = actionText + "广告",
         feed = this,
-        isFiltered = true,
+        isFiltered = !reverseBlock,
         content = ad.creatives
             .firstOrNull()
             ?.landingUrl,
@@ -85,9 +96,10 @@ fun Feed.toDisplayItem(
 
 private fun Feed.toTargetDisplayItem(
     enableQualityFilter: Boolean,
+    reverseBlock: Boolean,
 ): FeedDisplayItem {
     val target = target
-    val filterReason = if (enableQualityFilter) target?.filterReason() else null
+    val filterReason = if (!enableQualityFilter || reverseBlock) null else target?.filterReason()
 
     if (filterReason != null) {
         return FeedDisplayItem(
@@ -96,6 +108,7 @@ private fun Feed.toTargetDisplayItem(
             details = target!!.detailsText,
             feed = this,
             isFiltered = true,
+            isQualityFiltered = true,
         )
     }
 

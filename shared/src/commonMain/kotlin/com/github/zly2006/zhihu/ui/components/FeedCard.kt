@@ -84,6 +84,7 @@ import com.github.zly2006.zhihu.platform.rememberUserMessageSink
 import com.github.zly2006.zhihu.ui.subscreens.PREF_FONT_SIZE
 import com.github.zly2006.zhihu.ui.subscreens.PREF_LINE_HEIGHT
 import com.github.zly2006.zhihu.util.parseEmphasizedHtmlTextWithTheme
+import com.github.zly2006.zhihu.viewmodel.QUALITY_FILTER_MODE_PREFERENCE_KEY
 
 const val FEED_CARD_MORE_BUTTON_TAG = "feed_card_more_btn"
 
@@ -262,12 +263,12 @@ private fun FeedCardMenuBox(
                     navigator.onNavigate(Account.AppearanceSettings())
                 },
             )
-            if (item.isFiltered) {
+            if (item.isQualityFiltered) {
                 DropdownMenuItem(
-                    text = { Text("不再屏蔽低赞内容") },
+                    text = { Text("调整质量屏蔽") },
                     onClick = {
                         onShowMenuChange(false)
-                        navigator.onNavigate(Account.RecommendSettings("enableQualityFilter"))
+                        navigator.onNavigate(Account.RecommendSettings(QUALITY_FILTER_MODE_PREFERENCE_KEY))
                     },
                 )
             }
@@ -359,49 +360,55 @@ private fun FeedCardContent(
                         .padding(top = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    val avatarSrc = item.avatarSrc
-                    val authorName = item.authorName
-                    if (avatarSrc != null && authorName != null) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable {},
-                        ) {
-                            AsyncImage(
-                                model = avatarSrc,
-                                contentDescription = "Avatar",
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        val avatarSrc = item.avatarSrc
+                        val authorName = item.authorName
+                        if (avatarSrc != null && authorName != null) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
-                                    .clip(CircleShape)
-                                    .size(24.dp),
-                            )
-                            Spacer(Modifier.width(8.dp))
+                                    .weight(1f, fill = false)
+                                    .clickable {},
+                            ) {
+                                AsyncImage(
+                                    model = avatarSrc,
+                                    contentDescription = "Avatar",
+                                    modifier = Modifier
+                                        .clip(CircleShape)
+                                        .size(24.dp),
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = authorName,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false),
+                                )
+                                val authorBadge = item.authorBadgeV2.officialBadge()
+                                if (authorBadge?.isUsefulInList == true) {
+                                    Spacer(Modifier.width(4.dp))
+                                    AuthorBadge(authorBadge, compact = true)
+                                }
+                            }
+                            Spacer(Modifier.width(6.dp))
+                        }
+                        if (item.details.isNotEmpty()) {
                             Text(
-                                text = authorName,
+                                text = item.details,
                                 style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurface,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f, fill = false),
+                                modifier = Modifier.weight(1f),
                             )
-                            val authorBadge = item.authorBadgeV2.officialBadge()
-                            if (authorBadge?.isUsefulInList == true) {
-                                Spacer(Modifier.width(4.dp))
-                                AuthorBadge(authorBadge, compact = true)
-                            }
                         }
-                        Spacer(Modifier.width(6.dp))
-                    } else {
-                        Spacer(modifier = Modifier.weight(1f))
                     }
                     if (item.details.isNotEmpty()) {
-                        Text(
-                            text = item.details,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
                         FeedCardMenuBox(item, showMenu, onShowMenuChange, menuItems, navigator)
                     }
                 }
@@ -486,15 +493,19 @@ private fun FeedCardContent(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Spacer(modifier = Modifier.weight(1f))
-                Text(
-                    text = item.details,
-                    fontSize = 12.sp,
-                    lineHeight = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Box(
+                    modifier = Modifier.weight(1f),
+                    contentAlignment = Alignment.CenterEnd,
+                ) {
+                    Text(
+                        text = item.details,
+                        fontSize = 12.sp,
+                        lineHeight = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 FeedCardMenuBox(item, showMenu, onShowMenuChange, menuItems, navigator)
             }
         }

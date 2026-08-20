@@ -97,6 +97,7 @@ import com.github.zly2006.zhihu.data.DataHolder
 import com.github.zly2006.zhihu.data.decodeQuestionContentDetail
 import com.github.zly2006.zhihu.navigation.LocalNavigator
 import com.github.zly2006.zhihu.navigation.Question
+import com.github.zly2006.zhihu.navigation.Topic
 import com.github.zly2006.zhihu.navigation.WriteAnswer
 import com.github.zly2006.zhihu.platform.rememberSettingsStore
 import com.github.zly2006.zhihu.platform.rememberUserMessageSink
@@ -356,7 +357,7 @@ fun QuestionScreen(
                                 followerCount = followerCount,
                                 onShowComments = { showComments = true },
                             )
-                            if (questionContent.isNotEmpty()) {
+                            if (questionContent.isNotEmpty() || topics.isNotEmpty()) {
                                 Column {
                                     AnimatedVisibility(
                                         visible = isQuestionDetailExpanded,
@@ -421,6 +422,9 @@ fun QuestionScreen(
                                                         1.dp,
                                                         MaterialTheme.colorScheme.outlineVariant,
                                                     ),
+                                                    onClick = {
+                                                        navigator.onNavigate(Topic(topic.id, topic.name))
+                                                    },
                                                 ) {
                                                     Text(
                                                         text = topic.name,

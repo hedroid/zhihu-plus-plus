@@ -117,8 +117,10 @@ import com.github.zly2006.zhihu.navigation.Question
 import com.github.zly2006.zhihu.navigation.Search
 import com.github.zly2006.zhihu.navigation.SentenceSimilarityTest
 import com.github.zly2006.zhihu.navigation.TopLevelDestination
+import com.github.zly2006.zhihu.navigation.Topic
 import com.github.zly2006.zhihu.navigation.WriteAnswer
 import com.github.zly2006.zhihu.navigation.WritePin
+import com.github.zly2006.zhihu.platform.PlatformBackHandler
 import com.github.zly2006.zhihu.platform.rememberSettingsStore
 import com.github.zly2006.zhihu.reading.rememberReadingPlayerController
 import com.github.zly2006.zhihu.reading.saveReadingPlaybackSpeed
@@ -135,13 +137,12 @@ import com.github.zly2006.zhihu.ui.subscreens.IdentityManagementScreen
 import com.github.zly2006.zhihu.ui.subscreens.OpenSourceLicensesScreen
 import com.github.zly2006.zhihu.ui.subscreens.ProjectLicenseScreen
 import com.github.zly2006.zhihu.ui.subscreens.ReadingSettingsScreen
+import com.github.zly2006.zhihu.ui.subscreens.SettingsSearchScreen
 import com.github.zly2006.zhihu.ui.subscreens.SystemAndUpdateSettingsScreen
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.reflect.KClass
 import kotlin.reflect.typeOf
-
-const val SURVEY_URL = "https://v.wjx.cn/vm/Ppfw2R4.aspx#"
 
 private sealed class MainTabPage(
     val bottomDestination: TopLevelDestination,
@@ -349,6 +350,12 @@ fun ZhihuMain(
         }
     }
 
+    PlatformBackHandler(mainPagerState.currentPage != 0) {
+        coroutineScope.launch {
+            mainPagerState.animateScrollToPage(0)
+        }
+    }
+
     LaunchedEffect(mainTabNavigationTarget, mainTabPages) {
         mainTabNavigationTarget?.let { destination ->
             // 平台适配层会把旧的顶层 route 请求映射到 MainTabs。这里消费该请求，
@@ -532,12 +539,15 @@ fun ZhihuMain(
                         val question: Question = navEntry.toRoute()
                         QuestionScreen(question)
                     }
+                    composable<Topic> { navEntry ->
+                        TopicScreen(navEntry.toRoute())
+                    }
                     composable<WriteAnswer> { navEntry ->
                         val args: WriteAnswer = navEntry.toRoute()
                         WriteAnswerScreen(args)
                     }
-                    composable<WritePin> {
-                        WritePinScreen()
+                    composable<WritePin> { navEntry ->
+                        WritePinScreen(navEntry.toRoute())
                     }
                     composable<Article>(
                         typeMap = mapOf(typeOf<ArticleType>() to ArticleTypeNavType),
@@ -633,8 +643,10 @@ fun ZhihuMain(
                     composable<Notification.Message> { navEntry ->
                         PrivateMessageScreen(navEntry.toRoute())
                     }
-                    composable<Notification.NotificationSettings> {
-                        NotificationSettingsScreen()
+                    composable<Notification.NotificationSettings> { navEntry ->
+                        NotificationSettingsScreen(
+                            setting = navEntry.toRoute<Notification.NotificationSettings>().setting,
+                        )
                     }
                     composable<SentenceSimilarityTest> {
                         sentenceSimilarityContent()
@@ -653,14 +665,19 @@ fun ZhihuMain(
                     composable<Account.IdentityManagement> {
                         IdentityManagementScreen()
                     }
-                    composable<Account.SystemAndUpdateSettings> {
-                        SystemAndUpdateSettingsScreen()
+                    composable<Account.SystemAndUpdateSettings> { navEntry ->
+                        SystemAndUpdateSettingsScreen(
+                            setting = navEntry.toRoute<Account.SystemAndUpdateSettings>().setting,
+                        )
                     }
                     composable<Account.ReadingSettings> {
                         ReadingSettingsScreen()
                     }
                     composable<Account.ProjectLicense> {
                         ProjectLicenseScreen()
+                    }
+                    composable<Account.SettingsSearch> {
+                        SettingsSearchScreen()
                     }
                     composable<Account.OpenSourceLicenses> {
                         OpenSourceLicensesScreen()

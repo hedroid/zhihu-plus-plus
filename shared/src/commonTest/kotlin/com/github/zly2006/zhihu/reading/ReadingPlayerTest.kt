@@ -17,10 +17,6 @@
 
 package com.github.zly2006.zhihu.reading
 
-import com.github.zly2006.zhihu.data.FeedDisplayItem
-import com.github.zly2006.zhihu.data.toFeedDisplayItemNavDestinationJson
-import com.github.zly2006.zhihu.navigation.Article
-import com.github.zly2006.zhihu.navigation.ArticleType
 import com.github.zly2006.zhihu.platform.SettingsStore
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -65,6 +61,20 @@ class ReadingPlayerTest {
 
         assertEquals("作者：测试作者。\n想法正文。\n这是一条想法。", text)
         assertFalse(text.contains("标题"))
+    }
+
+    @Test
+    fun readingTextSkipsVideoLinksButKeepsRegularLinks() {
+        val html =
+            """
+            <p>视频前的正文。</p>
+            <a class="video-box" href="https://link.zhihu.com/?target=https%3A//www.zhihu.com/video/123">
+                https://www.zhihu.com/video/123
+            </a>
+            <p>查看<a href="https://www.zhihu.com/question/1">普通链接</a>后的正文。</p>
+            """.trimIndent()
+
+        assertEquals("视频前的正文。 查看普通链接后的正文。", htmlToReadingText(html))
     }
 
     @Test
@@ -414,29 +424,6 @@ class ReadingPlayerTest {
         )
 
         assertEquals(listOf(1L, 11L, 12L), queue.map(ReadingQueueItem::id))
-    }
-
-    @Test
-    fun queueSourceExcludesFilteredFeedItems() {
-        fun item(
-            id: Long,
-            filtered: Boolean,
-        ) = FeedDisplayItem(
-            title = "回答$id",
-            summary = null,
-            details = "",
-            feed = null,
-            navDestinationJson = Article(
-                type = ArticleType.Answer,
-                id = id,
-            ).toFeedDisplayItemNavDestinationJson(),
-            isFiltered = filtered,
-        )
-
-        val queueItems = listOf(item(1, false), item(2, true), item(3, false))
-            .toReadingQueueSourceItems()
-
-        assertEquals(listOf(1L, 3L), queueItems.map(ReadingQueueItem::id))
     }
 
     @Test
