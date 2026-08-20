@@ -738,6 +738,8 @@ fun PeopleScreen(
     LaunchedEffect(viewModel) {
         try {
             viewModel.load(paginationEnvironment)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             userMessages.showShortMessage("加载用户信息失败: ${e.message}")
         }
@@ -753,6 +755,8 @@ fun PeopleScreen(
                     feedModel.loadMore(paginationEnvironment)
                 }
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             userMessages.showShortMessage("加载页面内容失败: ${e.message}")
         }
