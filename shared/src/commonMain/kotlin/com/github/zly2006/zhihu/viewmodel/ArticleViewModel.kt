@@ -75,6 +75,7 @@ import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.utils.io.readLine
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -130,6 +131,7 @@ class ArticleViewModel(
     var createdAt by mutableLongStateOf(0L)
     var ipInfo by mutableStateOf<String?>(null)
     var endorsements by mutableStateOf<List<DataHolder.AnswerEndorsementDisplay>>(emptyList())
+    var topics by mutableStateOf<List<DataHolder.Topic>>(emptyList())
     var endorsementTexts: List<String>
         get() = endorsements.map { endorsement -> endorsement.text }
         set(value) {
@@ -275,6 +277,7 @@ class ArticleViewModel(
                             createdAt = answer.createdTime
                             ipInfo = answer.ipInfo
                             endorsements = answer.endorsementItems
+                            topics = emptyList()
 
                             environment.postHistoryDestination(
                                 Article(
@@ -351,6 +354,7 @@ class ArticleViewModel(
                             updatedAt = article.updated
                             createdAt = article.created
                             ipInfo = article.ipInfo
+                            topics = article.topics.orEmpty()
 
                             environment.postHistoryDestination(
                                 Article(
@@ -378,7 +382,7 @@ class ArticleViewModel(
 
     fun toggleFavorite(collectionId: String, remove: Boolean, environment: ZhihuApiEnvironment) {
         if (httpClient == null) return
-        viewModelScope.launch {
+        CoroutineScope(Dispatchers.Main.immediate).launch {
             try {
                 val contentType = when (article.type) {
                     ArticleType.Answer -> "answer"
@@ -399,6 +403,8 @@ class ArticleViewModel(
                 } else {
                     userMessages.showShortMessage("收藏操作失败")
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e("ArticleViewModel", "Favorite toggle failed", e)
                 userMessages.showShortMessage("收藏操作失败: ${e.message}")

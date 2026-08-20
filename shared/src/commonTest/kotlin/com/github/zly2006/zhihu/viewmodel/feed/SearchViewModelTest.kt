@@ -20,37 +20,41 @@ package com.github.zly2006.zhihu.viewmodel.feed
 import com.github.zly2006.zhihu.data.CommonFeed
 import com.github.zly2006.zhihu.data.Feed
 import com.github.zly2006.zhihu.data.Person
+import com.github.zly2006.zhihu.data.ZhihuJson
 import com.github.zly2006.zhihu.data.target
 import com.github.zly2006.zhihu.viewmodel.PaginationEnvironment
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.Url
+import io.ktor.http.headersOf
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class SearchViewModelTest {
     @Test
-    fun globalSearchUrlDoesNotCarryMemberRestriction() {
-        val url = Url(SearchViewModel("kmp 搜索").initialRequestUrl)
+    fun searchRequestKeepsMemberAndTabContractsSeparate() {
+        val hiddenGeneralFilters = SearchFilters(
+            sort = SearchSortOption.Latest,
+            contentType = SearchContentType.Answer,
+            timeRange = SearchTimeRange.Week,
+        )
+        val member = Url(zhihuSearchUrl("用户创作", restrictedMemberHashId = "member-hash-id"))
 
-        assertEquals("kmp 搜索", url.parameters["q"])
-        assertNull(url.parameters["restricted_scene"])
-        assertNull(url.parameters["restricted_field"])
-        assertNull(url.parameters["restricted_value"])
-    }
-
-    @Test
-    fun memberScopedSearchUrlCarriesZhihuRestrictionFields() {
-        val url = Url(SearchViewModel("用户创作", restrictedMemberHashId = "member-hash-id").initialRequestUrl)
-
-        assertEquals("用户创作", url.parameters["q"])
-        assertEquals("member", url.parameters["restricted_scene"])
-        assertEquals("member_hash_id", url.parameters["restricted_field"])
-        assertEquals("member-hash-id", url.parameters["restricted_value"])
-        assertEquals("Normal", url.parameters["search_source"])
-        assertEquals("0", url.parameters["lc_idx"])
+        assertEquals("member", member.parameters["restricted_scene"])
+        assertEquals("member_hash_id", member.parameters["restricted_field"])
+        assertEquals("member-hash-id", member.parameters["restricted_value"])
+        listOf(SearchTab.People, SearchTab.Topic).forEach { tab ->
+            val request = Url(zhihuSearchUrl("kmp 搜索", tab, hiddenGeneralFilters))
+            assertEquals(tab.parameter, request.parameters["t"])
+            assertEquals("Normal", request.parameters["search_source"])
+            assertTrue(listOf("sort", "vertical", "vertical_info", "time_interval").none { it in request.parameters })
+        }
     }
 
     @Test
@@ -59,10 +63,7 @@ class SearchViewModelTest {
         val blocked = answerFeed(id = 1, authorId = "blocked-user")
         val kept = answerFeed(id = 2, authorId = "kept-user")
 
-        viewModel.process(
-            environment = testEnvironment(blockedUserIds = setOf("blocked-user")),
-            feeds = listOf(blocked, kept),
-        )
+        viewModel.process(environment("{}", blockedUserIds = setOf("blocked-user")), listOf(blocked, kept))
 
         assertEquals(listOf<Feed>(kept), viewModel.allData)
         assertEquals(
@@ -77,20 +78,37 @@ class SearchViewModelTest {
     }
 
     private class TestSearchViewModel : SearchViewModel("query") {
+        override fun refresh(environment: PaginationEnvironment) = Unit
+
         fun process(
             environment: PaginationEnvironment,
             feeds: List<Feed>,
-        ) {
-            processResponse(environment, feeds, JsonArray(emptyList()))
-        }
+        ) = processResponse(environment, feeds, JsonArray(emptyList()))
     }
 
-    private fun testEnvironment(blockedUserIds: Set<String>) = object : PaginationEnvironment {
-        override fun httpClient() = HttpClient(MockEngine)
+    private fun environment(
+        response: String,
+        status: HttpStatusCode = HttpStatusCode.OK,
+        blockedUserIds: Set<String> = emptySet(),
+    ) = object : PaginationEnvironment {
+        override fun httpClient() = HttpClient(
+            MockEngine {
+                respond(response, status, headersOf(HttpHeaders.ContentType, "application/json"))
+            },
+        )
 
-        override fun authenticatedCookies() = emptyMap<String, String>()
+        override fun authenticatedCookies() = mapOf("d_c0" to "test")
 
         override fun blockedUserIds() = blockedUserIds
+
+        override suspend fun fetchJson(
+            url: String,
+            include: String,
+        ): JsonObject? = if (status == HttpStatusCode.OK) {
+            ZhihuJson.json.parseToJsonElement(response) as? JsonObject
+        } else {
+            null
+        }
 
         override suspend fun handleFetchFailure(
             tag: String?,

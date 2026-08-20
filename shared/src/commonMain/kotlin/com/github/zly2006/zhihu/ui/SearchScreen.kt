@@ -28,7 +28,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -49,13 +53,17 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -64,23 +72,31 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil3.compose.AsyncImage
+import com.github.zly2006.zhihu.data.DataHolder
 import com.github.zly2006.zhihu.data.ZhihuJson
+import com.github.zly2006.zhihu.data.officialBadge
 import com.github.zly2006.zhihu.navigation.Account
 import com.github.zly2006.zhihu.navigation.LocalNavigator
+import com.github.zly2006.zhihu.navigation.Person
 import com.github.zly2006.zhihu.navigation.Search
+import com.github.zly2006.zhihu.navigation.Topic
 import com.github.zly2006.zhihu.platform.SettingsStore
 import com.github.zly2006.zhihu.platform.UserMessageDuration
 import com.github.zly2006.zhihu.platform.rememberSettingsStore
 import com.github.zly2006.zhihu.platform.rememberUserMessageSink
 import com.github.zly2006.zhihu.reading.RegisterReadingQueueSource
+import com.github.zly2006.zhihu.ui.components.AuthorBadge
 import com.github.zly2006.zhihu.ui.components.DraggableRefreshButton
 import com.github.zly2006.zhihu.ui.components.FeedAuthorBlockConfirmDialog
 import com.github.zly2006.zhihu.ui.components.FeedAuthorBlockRequest
@@ -89,9 +105,12 @@ import com.github.zly2006.zhihu.ui.components.FeedCard
 import com.github.zly2006.zhihu.ui.components.FeedPullToRefresh
 import com.github.zly2006.zhihu.ui.components.PaginatedList
 import com.github.zly2006.zhihu.ui.components.ProgressIndicatorFooter
+import com.github.zly2006.zhihu.util.parseEmphasizedHtmlTextWithTheme
 import com.github.zly2006.zhihu.viewmodel.PaginationEnvironment
 import com.github.zly2006.zhihu.viewmodel.feed.SearchContentType
+import com.github.zly2006.zhihu.viewmodel.feed.SearchEntity
 import com.github.zly2006.zhihu.viewmodel.feed.SearchSortOption
+import com.github.zly2006.zhihu.viewmodel.feed.SearchTab
 import com.github.zly2006.zhihu.viewmodel.feed.SearchTimeRange
 import com.github.zly2006.zhihu.viewmodel.feed.SearchViewModel
 import com.github.zly2006.zhihu.viewmodel.feed.ZHIHU_HOT_SEARCH_URL
@@ -147,11 +166,13 @@ fun SearchScreen(
         append("search:")
         append(search.restrictedMemberHashId)
         append(':')
-        append(viewModel.sortOption.name)
+        append(viewModel.filters.sort.name)
         append(':')
-        append(viewModel.contentType.name)
+        append(viewModel.filters.contentType.name)
         append(':')
-        append(viewModel.timeRange.name)
+        append(viewModel.searchTab.name)
+        append(':')
+        append(viewModel.filters.timeRange.name)
         append(':')
         append(search.query)
     }
@@ -165,6 +186,8 @@ fun SearchScreen(
     val searchInputFocusRequester = remember { FocusRequester() }
     var searchText by remember { mutableStateOf(search.query) }
     val coroutineScope = rememberCoroutineScope()
+    val peopleListState = rememberLazyListState()
+    val topicListState = rememberLazyListState()
     val isMemberSearch = search.isRestrictedToMember
     val memberSearchName = search.restrictedMemberName.ifBlank { "TA" }
     val searchPlaceholder = if (isMemberSearch) "搜索 $memberSearchName 的创作" else "搜索内容"
@@ -375,19 +398,21 @@ fun SearchScreen(
                     }
                 },
                 actions = {
-                    IconButton(
-                        onClick = { filterMenuExpanded = true },
-                        enabled = search.query.isNotEmpty(),
-                        modifier = Modifier.testTag("search_filter_button"),
-                    ) {
-                        Icon(Icons.Default.FilterList, contentDescription = "筛选搜索结果")
+                    if (viewModel.searchTab == SearchTab.General) {
+                        IconButton(
+                            onClick = { filterMenuExpanded = true },
+                            enabled = search.query.isNotEmpty(),
+                            modifier = Modifier.testTag("search_filter_button"),
+                        ) {
+                            Icon(Icons.Default.FilterList, contentDescription = "筛选搜索结果")
+                        }
+                        SearchFilterMenu(
+                            expanded = filterMenuExpanded,
+                            onDismissRequest = { filterMenuExpanded = false },
+                            viewModel = viewModel,
+                            paginationEnvironment = paginationEnvironment,
+                        )
                     }
-                    SearchFilterMenu(
-                        expanded = filterMenuExpanded,
-                        onDismissRequest = { filterMenuExpanded = false },
-                        viewModel = viewModel,
-                        paginationEnvironment = paginationEnvironment,
-                    )
                 },
             )
         },
@@ -397,6 +422,18 @@ fun SearchScreen(
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
+            if (search.query.isNotEmpty() && !isMemberSearch) {
+                PrimaryTabRow(selectedTabIndex = viewModel.searchTab.ordinal) {
+                    SearchTab.entries.forEach { tab ->
+                        Tab(
+                            selected = viewModel.searchTab == tab,
+                            onClick = { viewModel.selectTab(paginationEnvironment, tab) },
+                            text = { Text(tab.label) },
+                            modifier = Modifier.testTag("search_tab_${tab.name}"),
+                        )
+                    }
+                }
+            }
             if (viewModel.displayItems.isEmpty() && !viewModel.isLoading && viewModel.searchQuery.isEmpty()) {
                 val shouldShowHistory = showSearchHistory.value && searchHistoryItems.isNotEmpty()
                 val shouldShowHotSearch = showHotSearch.value && hotSearchItems.isNotEmpty()
@@ -559,11 +596,102 @@ fun SearchScreen(
                         )
                     }
                 }
+            } else if (viewModel.searchTab != SearchTab.General) {
+                val resultListState = if (viewModel.searchTab == SearchTab.Topic) topicListState else peopleListState
+                val shouldLoadMoreResults by remember(resultListState) {
+                    derivedStateOf {
+                        val lastVisibleIndex = resultListState.layoutInfo.visibleItemsInfo
+                            .lastOrNull()
+                            ?.index ?: -1
+                        lastVisibleIndex >= resultListState.layoutInfo.totalItemsCount - 3
+                    }
+                }
+                LaunchedEffect(shouldLoadMoreResults, viewModel.isLoading, viewModel.isEnd) {
+                    if (shouldLoadMoreResults && !viewModel.isLoading && !viewModel.isEnd && viewModel.errorMessage == null) {
+                        viewModel.loadMore(paginationEnvironment)
+                    }
+                }
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    state = resultListState,
+                ) {
+                    items(viewModel.entities, key = SearchEntity::id) { result ->
+                        when (result) {
+                            is SearchEntity.Topic -> {
+                                val topic = result.topic
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { navigator.onNavigate(Topic(topic.id, topic.name)) }
+                                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                                        .testTag("search_topic_result_${topic.id}"),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    AsyncImage(
+                                        model = topic.avatarUrl,
+                                        contentDescription = "${topic.name}的话题头像",
+                                        modifier = Modifier.size(48.dp).clip(CircleShape),
+                                    )
+                                    Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                                        Text(topic.name, style = MaterialTheme.typography.titleMedium)
+                                        result.excerpt.takeIf(String::isNotBlank)?.let {
+                                            Text(
+                                                it,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                        }
+                                        Text(
+                                            "${formatTopicCount(result.visitCount.toString())} 浏览 · ${formatTopicCount(result.discussCount.toString())} 讨论",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                    TextButton(
+                                        modifier = Modifier.testTag("search_topic_follow_${topic.id}"),
+                                        enabled = topic.id !in viewModel.changingTopicIds,
+                                        onClick = {
+                                            coroutineScope.launch {
+                                                viewModel
+                                                    .setTopicFollowing(paginationEnvironment, topic.id, !result.isFollowing)
+                                                    .onFailure { userMessages.showShortMessage("关注操作失败：${it.message}") }
+                                            }
+                                        },
+                                    ) { Text(if (result.isFollowing) "已关注" else "关注") }
+                                }
+                            }
+                            is SearchEntity.Person -> {
+                                val person = result.person
+                                val plainName = person.name.replace("<em>", "").replace("</em>", "")
+                                PersonSearchResultRow(person) {
+                                    navigator.onNavigate(Person(person.id, person.urlToken.orEmpty(), plainName))
+                                }
+                            }
+                            is SearchEntity.Content -> Unit
+                        }
+                    }
+                    item {
+                        when {
+                            viewModel.errorMessage != null -> {
+                                TextButton(
+                                    modifier = Modifier.fillMaxWidth().testTag("search_retry_button"),
+                                    onClick = { viewModel.retry(paginationEnvironment) },
+                                ) {
+                                    Text("加载失败：${viewModel.errorMessage}，点击重试")
+                                }
+                            }
+                            !viewModel.isEnd -> ProgressIndicatorFooter(resultListState)
+                        }
+                    }
+                }
             } else {
                 FeedPullToRefresh(viewModel, paginationEnvironment) {
                     PaginatedList(
-                        items = viewModel.displayItems,
+                        items = viewModel.entities,
                         onLoadMore = { viewModel.loadMore(paginationEnvironment) },
+                        modifier = Modifier.testTag("search_general_results"),
                         topContent = {
                             item {
                                 if (isMemberSearch) {
@@ -580,26 +708,45 @@ fun SearchScreen(
                             }
                         },
                         footer = ProgressIndicatorFooter,
-                    ) { item ->
-                        FeedCard(
-                            item = item,
-                            readingQueueSourceId = readingQueueSourceId,
-                            menuItems = { dismissMenu ->
-                                DropdownMenuItem(
-                                    text = { Text("屏蔽用户") },
-                                    onClick = {
-                                        dismissMenu()
-                                        viewModel.handleBlockUser(paginationEnvironment, userMessages, item) { authorInfo ->
-                                            feedAuthorBlockRequest = FeedAuthorBlockRequest(
-                                                FeedAuthorBlockType.CONTENT_AUTHOR,
-                                                authorInfo.first,
-                                                authorInfo.second,
-                                            )
-                                        }
-                                    },
+                        key = SearchEntity::id,
+                    ) { result ->
+                        when (result) {
+                            is SearchEntity.Content -> FeedCard(
+                                item = result.item,
+                                modifier = Modifier.testTag("search_general_content_${result.id}"),
+                                readingQueueSourceId = readingQueueSourceId,
+                                menuItems = { dismissMenu ->
+                                    DropdownMenuItem(
+                                        text = { Text("屏蔽用户") },
+                                        onClick = {
+                                            dismissMenu()
+                                            viewModel.handleBlockUser(
+                                                paginationEnvironment,
+                                                userMessages,
+                                                result.item,
+                                            ) { authorInfo ->
+                                                feedAuthorBlockRequest = FeedAuthorBlockRequest(
+                                                    FeedAuthorBlockType.CONTENT_AUTHOR,
+                                                    authorInfo.first,
+                                                    authorInfo.second,
+                                                )
+                                            }
+                                        },
+                                    )
+                                },
+                            )
+                            is SearchEntity.Person -> PersonSearchResultRow(result.person) {
+                                val person = result.person
+                                navigator.onNavigate(
+                                    Person(
+                                        person.id,
+                                        person.urlToken.orEmpty(),
+                                        person.name.replace("<em>", "").replace("</em>", ""),
+                                    ),
                                 )
-                            },
-                        )
+                            }
+                            is SearchEntity.Topic -> Unit
+                        }
                     }
 
                     val showRefreshFab = remember { settings.getBoolean("showRefreshFab", true) }
@@ -633,6 +780,58 @@ fun SearchScreen(
 }
 
 @Composable
+private fun PersonSearchResultRow(
+    person: DataHolder.People,
+    onClick: () -> Unit,
+) {
+    val plainName = person.name.replace("<em>", "").replace("</em>", "")
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .testTag("search_people_result_${person.id}"),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AsyncImage(
+            model = person.avatarUrl,
+            contentDescription = "${plainName}的头像",
+            modifier = Modifier.size(48.dp).clip(CircleShape),
+        )
+        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = parseEmphasizedHtmlTextWithTheme(person.name),
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                val badge = person.badgeV2.officialBadge()
+                if (badge?.isUsefulInList == true) {
+                    Spacer(Modifier.width(4.dp))
+                    AuthorBadge(badge, compact = true)
+                }
+            }
+            person.headline.takeIf(String::isNotEmpty)?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Text(
+                text = "${person.followerCount} 粉丝 · ${person.answerCount} 回答",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
 private fun SearchFilterMenu(
     expanded: Boolean,
     onDismissRequest: () -> Unit,
@@ -647,11 +846,14 @@ private fun SearchFilterMenu(
         SearchSortOption.entries.forEach { option ->
             SearchFilterMenuItem(
                 text = option.label,
-                selected = viewModel.sortOption == option,
+                selected = viewModel.filters.sort == option,
                 testTag = "search_filter_sort_${option.name}",
                 onClick = {
                     onDismissRequest()
-                    viewModel.updateSortOption(paginationEnvironment, option)
+                    viewModel.updateFilters(
+                        paginationEnvironment,
+                        viewModel.filters.copy(sort = option),
+                    )
                 },
             )
         }
@@ -660,11 +862,14 @@ private fun SearchFilterMenu(
         SearchContentType.entries.forEach { type ->
             SearchFilterMenuItem(
                 text = type.label,
-                selected = viewModel.contentType == type,
+                selected = viewModel.filters.contentType == type,
                 testTag = "search_filter_type_${type.name}",
                 onClick = {
                     onDismissRequest()
-                    viewModel.updateContentType(paginationEnvironment, type)
+                    viewModel.updateFilters(
+                        paginationEnvironment,
+                        viewModel.filters.copy(contentType = type),
+                    )
                 },
             )
         }
@@ -673,11 +878,14 @@ private fun SearchFilterMenu(
         SearchTimeRange.entries.forEach { range ->
             SearchFilterMenuItem(
                 text = range.label,
-                selected = viewModel.timeRange == range,
+                selected = viewModel.filters.timeRange == range,
                 testTag = "search_filter_time_${range.name}",
                 onClick = {
                     onDismissRequest()
-                    viewModel.updateTimeRange(paginationEnvironment, range)
+                    viewModel.updateFilters(
+                        paginationEnvironment,
+                        viewModel.filters.copy(timeRange = range),
+                    )
                 },
             )
         }

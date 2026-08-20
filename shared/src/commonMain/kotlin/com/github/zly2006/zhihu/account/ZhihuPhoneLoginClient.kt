@@ -18,6 +18,7 @@
 package com.github.zly2006.zhihu.account
 
 import com.github.zly2006.zhihu.data.ZhihuJson
+import com.github.zly2006.zhihu.data.toCookieHeaderString
 import com.github.zly2006.zhihu.util.ZhihuMessageBodyEncryptor
 import com.github.zly2006.zhihu.util.hmacSha1Hex
 import io.ktor.client.HttpClient
@@ -28,7 +29,6 @@ import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
-import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
@@ -36,7 +36,6 @@ import io.ktor.http.Parameters
 import io.ktor.http.contentType
 import io.ktor.http.formUrlEncode
 import io.ktor.http.isSuccess
-import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -83,33 +82,7 @@ data class ZhihuPhoneLoginDeviceInfo(
     val freeMemoryMegabytes: Int,
     val totalStorageMegabytes: Int,
     val freeStorageMegabytes: Int,
-) {
-    internal fun formParameters(): Parameters = Parameters.build {
-        append("app_build", "40408")
-        append("app_install_time", appInstallTimeMillis.toString())
-        append("app_ticket", "interface is empty")
-        append("app_version", "11.4.0")
-        append("bt_ck", if (bluetoothAvailable) "1" else "0")
-        append("bundle_id", MOBILE_SOURCE)
-        append("cp_ct", cpuCount.toString())
-        append("cp_tp", cpuType)
-        append("cp_us", cpuUsage)
-        append("d_n", phoneModel)
-        append("fr_mem", freeMemoryMegabytes.toString())
-        append("fr_st", freeStorageMegabytes.toString())
-        append("latitude", "0.0")
-        append("longitude", "0.0")
-        append("nt_st", if (notificationEnabled) "1" else "0")
-        append("ph_br", phoneBrand)
-        append("ph_md", phoneModel)
-        append("ph_os", "Android $androidRelease")
-        append("pre_install", "InterfaceIsNull")
-        append("tt_mem", totalMemoryMegabytes.toString())
-        append("tt_st", totalStorageMegabytes.toString())
-        append("tz_of", timezoneOffsetSeconds.toString())
-        append("zx_expired", "0")
-    }
-}
+)
 
 sealed interface ZhihuPhoneDigitsResult {
     data object Sent : ZhihuPhoneDigitsResult
@@ -118,12 +91,6 @@ sealed interface ZhihuPhoneDigitsResult {
         val imageBase64: String?,
     ) : ZhihuPhoneDigitsResult
 }
-
-class ZhihuPhoneLoginException(
-    message: String,
-    val statusCode: Int,
-    val errorCode: Int? = null,
-) : IllegalStateException(message)
 
 /**
  * 知乎 Android 客户端手机号登录协议。
@@ -139,6 +106,7 @@ class ZhihuPhoneLoginClient(
 ) {
     private var authorization = "oauth $MOBILE_CLIENT_ID"
     private var deviceId: String? = null
+    private var webDeviceCookie = cookies.remove("d_c0")?.takeIf(String::isNotBlank)
 
     suspend fun requestDigits(phoneNumber: String): ZhihuPhoneDigitsResult {
         val username = normalizePhoneNumber(phoneNumber)
@@ -168,11 +136,19 @@ class ZhihuPhoneLoginClient(
             return ZhihuPhoneDigitsResult.Sent
         }
 
-        val error = response.decodeError(body)
-        if (error.code in CAPTCHA_INVALID_ERROR_CODES) {
+        val error = runCatching {
+            val root = ZhihuJson.json.parseToJsonElement(body).jsonObject
+            root["error"]?.jsonObject ?: root
+        }.getOrNull()
+        val errorCode = error
+            ?.get("code")
+            ?.jsonPrimitive
+            ?.content
+            ?.toIntOrNull()
+        if (errorCode in CAPTCHA_INVALID_ERROR_CODES) {
             return ZhihuPhoneDigitsResult.CaptchaRequired(refreshCaptcha())
         }
-        if (error.code == CAPTCHA_NEEDED_ERROR_CODE && recheckCaptchaWhenRequested) {
+        if (errorCode == CAPTCHA_NEEDED_ERROR_CODE && recheckCaptchaWhenRequested) {
             val captchaState = requestCaptchaState()
             return if (captchaState.showCaptcha) {
                 ZhihuPhoneDigitsResult.CaptchaRequired(refreshCaptcha())
@@ -180,7 +156,11 @@ class ZhihuPhoneLoginClient(
                 sendDigits(username, recheckCaptchaWhenRequested = false)
             }
         }
-        throw error.toException(response)
+        val errorMessage = error?.get("message")?.jsonPrimitive?.content
+        error(
+            errorMessage?.let { "发送短信验证码失败：$it" }
+                ?: "发送短信验证码失败（HTTP ${response.status.value}）",
+        )
     }
 
     suspend fun refreshCaptcha(): String? {
@@ -188,8 +168,9 @@ class ZhihuPhoneLoginClient(
         val response = httpClient.put("$PHONE_LOGIN_API_BASE_URL$CAPTCHA_PATH") {
             applyMobileHeaders()
         }
-        val body = response.successBody("获取图形验证码")
-        return ZhihuJson.json.decodeFromString<CaptchaResponse>(body).imageBase64
+        val body = response.bodyAsText()
+        check(response.status.isSuccess()) { "获取图形验证码失败（HTTP ${response.status.value}）" }
+        return ZhihuJson.decodeJson<CaptchaResponse>(ZhihuJson.json.parseToJsonElement(body)).imgBase64
     }
 
     suspend fun verifyCaptcha(input: String): Boolean {
@@ -199,8 +180,9 @@ class ZhihuPhoneLoginClient(
             applyMobileHeaders()
             setEncryptedForm("input_text" to input.trim())
         }
-        val body = response.successBody("验证图形验证码")
-        return ZhihuJson.json.decodeFromString<CaptchaVerificationResponse>(body).success
+        val body = response.bodyAsText()
+        check(response.status.isSuccess()) { "验证图形验证码失败（HTTP ${response.status.value}）" }
+        return ZhihuJson.decodeJson<CaptchaVerificationResponse>(ZhihuJson.json.parseToJsonElement(body)).success
     }
 
     suspend fun signIn(
@@ -228,10 +210,22 @@ class ZhihuPhoneLoginClient(
                 "username" to username,
             )
         }
-        val body = response.successBody("手机号登录")
-        val token = ZhihuJson.json.decodeFromString<TokenResponse>(body)
+        val body = response.bodyAsText()
+        if (!response.status.isSuccess()) {
+            val message = runCatching {
+                val root = ZhihuJson.json.parseToJsonElement(body).jsonObject
+                (root["error"]?.jsonObject ?: root)["message"]?.jsonPrimitive?.content
+            }.getOrNull()
+            error(message?.let { "手机号登录失败：$it" } ?: "手机号登录失败（HTTP ${response.status.value}）")
+        }
+        val token = ZhihuJson.decodeJson<TokenResponse>(ZhihuJson.json.parseToJsonElement(body))
         check(token.accessToken.isNotBlank()) { "服务器未返回登录凭证" }
-        cookies.putAll(token.cookie.values())
+        cookies.putAll(token.cookie.filterValues(String::isNotBlank))
+        if (cookies["d_c0"].isNullOrBlank()) {
+            cookies["d_c0"] = checkNotNull(webDeviceCookie) {
+                "服务器未返回必要的 Cookie d_c0"
+            }
+        }
         return ZhihuMobileLoginToken(
             accessToken = token.accessToken,
             refreshToken = token.refreshToken,
@@ -244,8 +238,50 @@ class ZhihuPhoneLoginClient(
     private suspend fun ensureGuestToken() {
         if (!authorization.startsWith("oauth ")) return
 
+        if (webDeviceCookie == null) {
+            val mobileCookies = cookies.toMap()
+            var fetchedDeviceCookie: String? = null
+            val response = try {
+                httpClient.post("https://www.zhihu.com/udid").also {
+                    fetchedDeviceCookie = cookies["d_c0"]?.takeIf(String::isNotBlank)
+                }
+            } finally {
+                // `d_c0` makes the mobile guest initialization return 500. Keep one cookie store,
+                // but do not expose web preheating cookies to the mobile protocol before sign-in.
+                cookies.clear()
+                cookies.putAll(mobileCookies)
+            }
+            check(response.status.isSuccess()) { "初始化网页设备凭证失败（HTTP ${response.status.value}）" }
+            webDeviceCookie = checkNotNull(fetchedDeviceCookie) { "服务器未返回必要的 Cookie d_c0" }
+        }
+
         val timestamp = nowEpochSeconds().toString()
-        val form = deviceInfo.formParameters().formUrlEncode()
+        val form = Parameters
+            .build {
+                append("app_build", "40408")
+                append("app_install_time", deviceInfo.appInstallTimeMillis.toString())
+                append("app_ticket", "interface is empty")
+                append("app_version", "11.4.0")
+                append("bt_ck", if (deviceInfo.bluetoothAvailable) "1" else "0")
+                append("bundle_id", MOBILE_SOURCE)
+                append("cp_ct", deviceInfo.cpuCount.toString())
+                append("cp_tp", deviceInfo.cpuType)
+                append("cp_us", deviceInfo.cpuUsage)
+                append("d_n", deviceInfo.phoneModel)
+                append("fr_mem", deviceInfo.freeMemoryMegabytes.toString())
+                append("fr_st", deviceInfo.freeStorageMegabytes.toString())
+                append("latitude", "0.0")
+                append("longitude", "0.0")
+                append("nt_st", if (deviceInfo.notificationEnabled) "1" else "0")
+                append("ph_br", deviceInfo.phoneBrand)
+                append("ph_md", deviceInfo.phoneModel)
+                append("ph_os", "Android ${deviceInfo.androidRelease}")
+                append("pre_install", "InterfaceIsNull")
+                append("tt_mem", deviceInfo.totalMemoryMegabytes.toString())
+                append("tt_st", deviceInfo.totalStorageMegabytes.toString())
+                append("tz_of", deviceInfo.timezoneOffsetSeconds.toString())
+                append("zx_expired", "0")
+            }.formUrlEncode()
         val signature = hmacSha1Hex(
             CLOUD_APP_SECRET,
             CLOUD_APP_ID + CLOUD_SIGN_VERSION + form + timestamp,
@@ -259,13 +295,23 @@ class ZhihuPhoneLoginClient(
             contentType(ContentType.Application.FormUrlEncoded)
             setBody(ZhihuMessageBodyEncryptor.encrypt(form))
         }
-        val body = response.successBody("初始化手机号登录")
-        val initialization = ZhihuJson.json.decodeFromString<DeviceGuestInitializationResponse>(body)
+        val body = response.bodyAsText()
+        if (!response.status.isSuccess()) {
+            val message = runCatching {
+                val root = ZhihuJson.json.parseToJsonElement(body).jsonObject
+                (root["error"]?.jsonObject ?: root)["message"]?.jsonPrimitive?.content
+            }.getOrNull()
+            error(
+                message?.let { "初始化手机号登录失败：$it" }
+                    ?: "初始化手机号登录失败（HTTP ${response.status.value}）",
+            )
+        }
+        val initialization = ZhihuJson.decodeJson<DeviceGuestInitializationResponse>(ZhihuJson.json.parseToJsonElement(body))
         val guest = initialization.guest
         check(guest.accessToken.isNotBlank()) { "服务器未返回访客凭证" }
-        check(initialization.deviceId.isNotBlank()) { "服务器未返回设备凭证" }
-        cookies.putAll(guest.cookie.values())
-        deviceId = initialization.deviceId
+        check(initialization.udid.isNotBlank()) { "服务器未返回设备凭证" }
+        cookies.putAll(guest.cookie.filterValues(String::isNotBlank))
+        deviceId = initialization.udid
         authorization = "${guest.tokenType.ifBlank { "bearer" }} ${guest.accessToken}"
     }
 
@@ -273,13 +319,18 @@ class ZhihuPhoneLoginClient(
         val response = httpClient.get("$PHONE_LOGIN_API_BASE_URL$CAPTCHA_PATH") {
             applyMobileHeaders()
         }
-        return ZhihuJson.json.decodeFromString(response.successBody("检查图形验证码"))
+        val body = response.bodyAsText()
+        check(response.status.isSuccess()) { "检查图形验证码失败（HTTP ${response.status.value}）" }
+        return ZhihuJson.decodeJson(ZhihuJson.json.parseToJsonElement(body))
     }
 
     private fun HttpRequestBuilder.applyMobileHeaders() {
         accept(ContentType.Application.Json)
         header(HttpHeaders.UserAgent, ZHIHU_ANDROID_PHONE_LOGIN_USER_AGENT)
         header(HttpHeaders.Authorization, authorization)
+        cookies.toCookieHeaderString().takeIf(String::isNotBlank)?.let {
+            header(HttpHeaders.Cookie, it)
+        }
         deviceId?.let { header("x-udid", it) }
         header("x-api-version", "3.0.93")
         header("x-app-version", "11.4.0")
@@ -323,52 +374,23 @@ private fun normalizePhoneNumber(phoneNumber: String): String {
     return "+86$local"
 }
 
-private suspend fun HttpResponse.successBody(operation: String): String {
-    val body = bodyAsText()
-    if (status.isSuccess()) return body
-    throw decodeError(body).toException(this, operation)
-}
-
-private fun HttpResponse.decodeError(body: String): PhoneLoginError = runCatching {
-    val root = ZhihuJson.json.parseToJsonElement(body).jsonObject
-    val error = root["error"]?.jsonObject ?: root
-    PhoneLoginError(
-        code = error["code"]?.jsonPrimitive?.content?.toIntOrNull(),
-        message = error["message"]?.jsonPrimitive?.content,
-    )
-}.getOrDefault(PhoneLoginError())
-
-private fun PhoneLoginError.toException(
-    response: HttpResponse,
-    operation: String = "发送短信验证码",
-): ZhihuPhoneLoginException = ZhihuPhoneLoginException(
-    message = message?.let { "$operation 失败：$it" } ?: "$operation 失败（HTTP ${response.status.value}）",
-    statusCode = response.status.value,
-    errorCode = code,
-)
-
 @Serializable
 private data class GuestTokenResponse(
-    @SerialName("access_token")
     val accessToken: String,
-    @SerialName("token_type")
     val tokenType: String = "bearer",
-    val cookie: LoginCookie = LoginCookie(),
+    val cookie: Map<String, String> = emptyMap(),
 )
 
 @Serializable
 private data class DeviceGuestInitializationResponse(
-    @SerialName("udid")
-    val deviceId: String,
+    val udid: String,
     val guest: GuestTokenResponse,
 )
 
 @Serializable
 private data class CaptchaResponse(
-    @SerialName("show_captcha")
     val showCaptcha: Boolean = false,
-    @SerialName("img_base64")
-    val imageBase64: String? = null,
+    val imgBase64: String? = null,
 )
 
 @Serializable
@@ -378,33 +400,11 @@ private data class CaptchaVerificationResponse(
 
 @Serializable
 private data class TokenResponse(
-    @SerialName("access_token")
     val accessToken: String,
-    @SerialName("refresh_token")
     val refreshToken: String? = null,
-    @SerialName("token_type")
     val tokenType: String = "bearer",
-    @SerialName("expires_in")
     val expiresIn: Long? = null,
-    val cookie: LoginCookie = LoginCookie(),
-)
-
-@Serializable
-private data class LoginCookie(
-    @SerialName("q_c0")
-    val qCookie: String? = null,
-    @SerialName("z_c0")
-    val zCookie: String? = null,
-) {
-    fun values(): Map<String, String> = buildMap {
-        qCookie?.takeIf(String::isNotBlank)?.let { put("q_c0", it) }
-        zCookie?.takeIf(String::isNotBlank)?.let { put("z_c0", it) }
-    }
-}
-
-private data class PhoneLoginError(
-    val code: Int? = null,
-    val message: String? = null,
+    val cookie: Map<String, String> = emptyMap(),
 )
 
 private val CAPTCHA_INVALID_ERROR_CODES = setOf(120001, 120002)

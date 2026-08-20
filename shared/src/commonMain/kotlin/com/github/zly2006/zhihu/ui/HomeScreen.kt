@@ -58,6 +58,7 @@ import androidx.compose.material.icons.filled.MarkUnreadChatAlt
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CircularProgressIndicator
@@ -71,6 +72,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -125,6 +127,8 @@ import com.github.zly2006.zhihu.ui.subscreens.PREF_FAB_OPACITY
 import com.github.zly2006.zhihu.ui.subscreens.SystemUpdateState
 import com.github.zly2006.zhihu.ui.subscreens.rememberSystemUpdateRuntime
 import com.github.zly2006.zhihu.ui.topLevelReselectAction
+import com.github.zly2006.zhihu.viewmodel.QUALITY_FILTER_MODE_PREFERENCE_KEY
+import com.github.zly2006.zhihu.viewmodel.QualityFilterMode
 import com.github.zly2006.zhihu.viewmodel.feed.BaseFeedViewModel
 import com.github.zly2006.zhihu.viewmodel.feed.HomeFeedInteractionViewModel
 import com.github.zly2006.zhihu.viewmodel.feed.HomeFeedViewModel
@@ -198,6 +202,18 @@ fun HomeScreen(
     }
 
     val account = rememberAccountSettingsAccountState().value
+    if (account.login && !account.hasRequiredCookie) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("Cookie 不完整") },
+            text = { Text("当前登录信息缺少必要的 Cookie d_c0，请重新登录。") },
+            confirmButton = {
+                TextButton(onClick = { paginationEnvironment.requestLogin() }) {
+                    Text("重新登录")
+                }
+            },
+        )
+    }
     val updateState by rememberSystemUpdateRuntime().state.collectAsState()
     val updateAnnouncement = updateState as? SystemUpdateState.UpdateAvailable
     val isDebuggable = rememberHomeIsDebuggable()
@@ -255,6 +271,18 @@ fun HomeScreen(
                     }
                 }
             }
+        }
+    }
+
+    val completedPageCount = viewModel.completedPageCount
+    LaunchedEffect(completedPageCount) {
+        if (completedPageCount > 0 &&
+            currentRecommendationMode == RecommendationMode.WEB &&
+            settings.getString(QUALITY_FILTER_MODE_PREFERENCE_KEY, QualityFilterMode.RULES.name) == QualityFilterMode.HIDE.name &&
+            viewModel.displayItems.isEmpty() &&
+            !viewModel.isEnd
+        ) {
+            viewModel.loadMore(paginationEnvironment)
         }
     }
 
@@ -510,7 +538,7 @@ fun HomeScreen(
                                 leadingIcon = { Icon(Icons.Default.ArrowCircleUp, contentDescription = null) },
                                 accept = { Text("查看更新") },
                                 onAccept = {
-                                    navigator.onNavigate(Account.SystemAndUpdateSettings)
+                                    navigator.onNavigate(Account.SystemAndUpdateSettings())
                                 },
                                 dismiss = { Text("以后") },
                                 onDismiss = {
@@ -721,7 +749,7 @@ fun HomeScreen(
                                 },
                                 onClick = {
                                     showCreateMenu = false
-                                    navigator.onNavigate(WritePin)
+                                    navigator.onNavigate(WritePin())
                                 },
                             )
                         }
