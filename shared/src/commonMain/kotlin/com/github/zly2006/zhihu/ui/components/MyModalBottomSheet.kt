@@ -38,6 +38,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ConsumeSwipeWithinBottomSheetBoundsNestedScrollConnection
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -74,6 +75,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.collapse
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.dismiss
@@ -96,6 +99,9 @@ import kotlin.math.min
 
 const val DISABLE_BOTTOM_SHEET_ROUNDED_CORNERS_PREFERENCE_KEY = "disableBottomSheetRoundedCorners"
 
+internal fun resolveBottomSheetCornerRadius(windowWidth: Dp, windowHeight: Dp): Dp =
+    (minOf(windowWidth, windowHeight) * 0.05f).coerceIn(16.dp, 24.dp)
+
 @Composable
 @ExperimentalMaterial3Api
 fun MyModalBottomSheet(
@@ -104,7 +110,7 @@ fun MyModalBottomSheet(
     sheetState: SheetState = rememberModalBottomSheetState(),
     sheetMaxWidth: Dp = BottomSheetDefaults.SheetMaxWidth,
     sheetGesturesEnabled: Boolean = true,
-    shape: Shape = BottomSheetDefaults.ExpandedShape,
+    shape: Shape? = null,
     containerColor: Color = BottomSheetDefaults.ContainerColor,
     contentColor: Color = contentColorFor(containerColor),
     tonalElevation: Dp = 0.dp,
@@ -116,10 +122,15 @@ fun MyModalBottomSheet(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val settings = rememberSettingsStore()
+    val density = LocalDensity.current
+    val windowSize = LocalWindowInfo.current.containerSize
+    val adaptiveCornerRadius = with(density) {
+        resolveBottomSheetCornerRadius(windowSize.width.toDp(), windowSize.height.toDp())
+    }
     val bottomSheetShape = if (settings.getBoolean(DISABLE_BOTTOM_SHEET_ROUNDED_CORNERS_PREFERENCE_KEY, false)) {
         RectangleShape
     } else {
-        shape
+        shape ?: RoundedCornerShape(topStart = adaptiveCornerRadius, topEnd = adaptiveCornerRadius)
     }
     val scope = rememberCoroutineScope()
     val animateToDismiss: () -> Unit = {
