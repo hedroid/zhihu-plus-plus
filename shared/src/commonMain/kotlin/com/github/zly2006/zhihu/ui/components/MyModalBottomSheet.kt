@@ -32,10 +32,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -104,9 +106,10 @@ internal fun resolveBottomSheetCornerRadius(
     windowWidth: Dp,
     windowHeight: Dp,
     sheetTopOffset: Dp = windowHeight,
+    statusBarTopInset: Dp = 0.dp,
 ): Dp = minOf(
     (minOf(windowWidth, windowHeight) * 0.05f).coerceIn(16.dp, 24.dp),
-    sheetTopOffset.coerceAtLeast(0.dp),
+    (sheetTopOffset - statusBarTopInset).coerceAtLeast(0.dp),
 )
 
 @Composable
@@ -131,7 +134,8 @@ fun MyModalBottomSheet(
     val settings = rememberSettingsStore()
     val density = LocalDensity.current
     val windowSize = LocalWindowInfo.current.containerSize
-    val adaptiveCornerRadius by remember(sheetState, density, windowSize) {
+    val statusBarTopInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val adaptiveCornerRadius by remember(sheetState, density, windowSize, statusBarTopInset) {
         derivedStateOf {
             with(density) {
                 val sheetTopOffset = sheetState.anchoredDraggableState.offset
@@ -143,6 +147,7 @@ fun MyModalBottomSheet(
                     } else {
                         sheetTopOffset.toDp()
                     },
+                    statusBarTopInset = statusBarTopInset,
                 )
             }
         }

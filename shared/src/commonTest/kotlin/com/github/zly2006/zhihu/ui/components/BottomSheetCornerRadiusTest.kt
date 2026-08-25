@@ -47,4 +47,30 @@ class BottomSheetCornerRadiusTest {
     fun fullHeightSheetLetsThePhysicalDisplayClipItsCorners() {
         assertEquals(0.dp, resolveBottomSheetCornerRadius(360.dp, 800.dp, 0.dp))
     }
+
+    @Test
+    fun platformSheetAtStatusBarTopDoesNotKeepASecondCorner() {
+        assertEquals(
+            0.dp,
+            resolveBottomSheetCornerRadius(
+                windowWidth = 360.dp,
+                windowHeight = 800.dp,
+                sheetTopOffset = 24.dp,
+                statusBarTopInset = 24.dp,
+            ),
+        )
+    }
+
+    @Test
+    fun platformSheetRestoresCornerBelowStatusBar() {
+        assertEquals(
+            8.dp,
+            resolveBottomSheetCornerRadius(
+                windowWidth = 360.dp,
+                windowHeight = 800.dp,
+                sheetTopOffset = 32.dp,
+                statusBarTopInset = 24.dp,
+            ),
+        )
+    }
 }
