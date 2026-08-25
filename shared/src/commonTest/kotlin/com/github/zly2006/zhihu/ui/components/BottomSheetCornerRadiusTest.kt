@@ -37,4 +37,14 @@ class BottomSheetCornerRadiusTest {
     fun largeWindowCapsTheRadius() {
         assertEquals(24.dp, resolveBottomSheetCornerRadius(600.dp, 960.dp))
     }
+
+    @Test
+    fun radiusShrinksWhenSheetApproachesTheWindowTop() {
+        assertEquals(8.dp, resolveBottomSheetCornerRadius(360.dp, 800.dp, 8.dp))
+    }
+
+    @Test
+    fun fullHeightSheetLetsThePhysicalDisplayClipItsCorners() {
+        assertEquals(0.dp, resolveBottomSheetCornerRadius(360.dp, 800.dp, 0.dp))
+    }
 }
