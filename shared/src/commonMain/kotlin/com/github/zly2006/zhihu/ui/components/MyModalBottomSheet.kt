@@ -61,6 +61,7 @@ import androidx.compose.material3.verticalScaleUp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -99,8 +100,14 @@ import kotlin.math.min
 
 const val DISABLE_BOTTOM_SHEET_ROUNDED_CORNERS_PREFERENCE_KEY = "disableBottomSheetRoundedCorners"
 
-internal fun resolveBottomSheetCornerRadius(windowWidth: Dp, windowHeight: Dp): Dp =
-    (minOf(windowWidth, windowHeight) * 0.05f).coerceIn(16.dp, 24.dp)
+internal fun resolveBottomSheetCornerRadius(
+    windowWidth: Dp,
+    windowHeight: Dp,
+    sheetTopOffset: Dp = windowHeight,
+): Dp = minOf(
+    (minOf(windowWidth, windowHeight) * 0.05f).coerceIn(16.dp, 24.dp),
+    sheetTopOffset.coerceAtLeast(0.dp),
+)
 
 @Composable
 @ExperimentalMaterial3Api
@@ -124,8 +131,21 @@ fun MyModalBottomSheet(
     val settings = rememberSettingsStore()
     val density = LocalDensity.current
     val windowSize = LocalWindowInfo.current.containerSize
-    val adaptiveCornerRadius = with(density) {
-        resolveBottomSheetCornerRadius(windowSize.width.toDp(), windowSize.height.toDp())
+    val adaptiveCornerRadius by remember(sheetState, density, windowSize) {
+        derivedStateOf {
+            with(density) {
+                val sheetTopOffset = sheetState.anchoredDraggableState.offset
+                resolveBottomSheetCornerRadius(
+                    windowWidth = windowSize.width.toDp(),
+                    windowHeight = windowSize.height.toDp(),
+                    sheetTopOffset = if (sheetTopOffset.isNaN()) {
+                        windowSize.height.toDp()
+                    } else {
+                        sheetTopOffset.toDp()
+                    },
+                )
+            }
+        }
     }
     val bottomSheetShape = if (settings.getBoolean(DISABLE_BOTTOM_SHEET_ROUNDED_CORNERS_PREFERENCE_KEY, false)) {
         RectangleShape

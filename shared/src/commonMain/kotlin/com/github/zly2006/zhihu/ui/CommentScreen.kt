@@ -677,6 +677,7 @@ fun CommentScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .align(Alignment.BottomCenter),
+            shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
             color = commentBackgroundColor,
         ) {
             Column(
