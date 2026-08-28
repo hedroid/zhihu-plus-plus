@@ -70,7 +70,7 @@ fun AndroidZhihuMain(navController: NavHostController) {
                     slideInHorizontally(tween(300)) { it } + fadeIn(tween(300))
                 ArticleAnswerTransitionDirection.HORIZONTAL_PREVIOUS ->
                     slideInHorizontally(tween(300)) { -it } + fadeIn(tween(300))
-                else -> slideInHorizontally(tween(300)) { it }
+                else -> null
             }
         },
         articleExitTransition = {

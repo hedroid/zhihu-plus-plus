@@ -21,6 +21,7 @@ import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -28,7 +29,6 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -517,16 +517,36 @@ fun ZhihuMain(
                     },
                     startDestination = MainTabs,
                     enterTransition = {
-                        slideInHorizontally(tween(300)) { it }
+                        slideInHorizontally(
+                            animationSpec = tween(
+                                durationMillis = 220,
+                                easing = LinearOutSlowInEasing,
+                            ),
+                        ) { it / 4 } + fadeIn(
+                            animationSpec = tween(
+                                durationMillis = 160,
+                                easing = LinearOutSlowInEasing,
+                            ),
+                        )
                     },
                     exitTransition = {
                         ExitTransition.None
                     },
                     popEnterTransition = {
-                        EnterTransition.None
+                        slideInHorizontally(
+                            animationSpec = tween(
+                                durationMillis = 220,
+                                easing = LinearOutSlowInEasing,
+                            ),
+                        ) { -it / 4 } + fadeIn(
+                            animationSpec = tween(
+                                durationMillis = 160,
+                                easing = LinearOutSlowInEasing,
+                            ),
+                        )
                     },
                     popExitTransition = {
-                        slideOutHorizontally(tween(300)) { it } + fadeOut(tween(300))
+                        ExitTransition.None
                     },
                 ) {
                     composable<MainTabs> {
