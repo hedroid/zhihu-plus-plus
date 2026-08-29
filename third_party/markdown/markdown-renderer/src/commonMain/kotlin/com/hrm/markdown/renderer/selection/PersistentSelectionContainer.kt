@@ -19,6 +19,7 @@
 package com.hrm.markdown.renderer.selection
 
 import androidx.collection.LongObjectMap
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.text.selection.LocalSelectionRegistrar
 import androidx.compose.foundation.text.selection.Selectable
 import androidx.compose.foundation.text.selection.Selection
@@ -27,8 +28,13 @@ import androidx.compose.foundation.text.selection.SelectionLayoutBuilder
 import androidx.compose.foundation.text.selection.SelectionRegistrar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -36,6 +42,8 @@ import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextRange
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 
 internal interface DocumentOrderedSelectable {
     val documentOrder: List<Int>
@@ -50,11 +58,20 @@ internal interface DocumentOrderedSelectable {
  * id and reconnects that proxy to the real text node when the view is composed again. Text, layout,
  * selection calculation, drawing, handles, toolbar and clipboard behavior all remain AndroidX's;
  * there is no parallel text or coordinate layer.
+ *
+ * [scrollState], when provided, suspends selectable decoration while that scroll is in progress:
+ * foundation Text only attaches its selectable modifier chain (per-node position tracking) when a
+ * registrar is present, and with hundreds of visible text nodes that chain costs every scroll frame
+ * even with no active selection (AVD host-GPU profile: 90th percentile frame 65ms with selection
+ * decoration vs 32ms without, at the same baseline as a plain feed list). Suspension is skipped
+ * whenever a selection is active so selections still survive scrolling, and re-enables only after
+ * the scroll stays idle for 150ms to avoid flapping during intermittent fling settling.
  */
 @Composable
 fun PersistentSelectionContainer(
     documentKey: Any = Unit,
     modifier: Modifier = Modifier,
+    scrollState: ScrollState? = null,
     content: @Composable () -> Unit,
 ) {
     key(documentKey) {
@@ -63,8 +80,24 @@ fun PersistentSelectionContainer(
             val persistentRegistrar = remember(androidxRegistrar) {
                 PersistentSelectionRegistrar(androidxRegistrar)
             }
+            var suspendedByScroll by remember { mutableStateOf(false) }
+            if (scrollState != null) {
+                LaunchedEffect(scrollState) {
+                    snapshotFlow { scrollState.isScrollInProgress }.collectLatest { scrolling ->
+                        if (scrolling) {
+                            suspendedByScroll = true
+                        } else {
+                            delay(150)
+                            suspendedByScroll = false
+                        }
+                    }
+                }
+            }
+            val hasActiveSelection = persistentRegistrar.subselections.isNotEmpty()
+            val effectiveRegistrar =
+                if (suspendedByScroll && !hasActiveSelection) null else persistentRegistrar
             CompositionLocalProvider(
-                LocalSelectionRegistrar provides persistentRegistrar,
+                LocalSelectionRegistrar provides effectiveRegistrar,
                 content = content,
             )
         }

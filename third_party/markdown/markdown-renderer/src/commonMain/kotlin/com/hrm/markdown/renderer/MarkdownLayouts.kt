@@ -91,7 +91,10 @@ internal fun MarkdownDocumentLayout(
             ) {
                 header?.invoke()
                 if (renderMode == MarkdownRenderMode.SelectableColumn) {
-                    PersistentSelectionContainer(documentKey = LocalRendererDocument.current) {
+                    PersistentSelectionContainer(
+                        documentKey = LocalRendererDocument.current,
+                        scrollState = scrollState,
+                    ) {
                         markdownBody()
                     }
                 } else {
