@@ -42,6 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -82,6 +83,10 @@ import com.hrm.markdown.parser.ast.Document
 import com.hrm.markdown.renderer.Markdown
 import com.hrm.markdown.renderer.MarkdownImageData
 import com.hrm.markdown.renderer.MarkdownTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 @Composable
 fun RenderImage(
@@ -253,6 +258,22 @@ private fun NoDoubleClickSelectionScope(content: @Composable () -> Unit) {
     }
 }
 
+// htmlToMdAst 内部通过全局 parsingDocument 收集脚注定义，不是线程安全的；
+// 解析移到后台线程后必须经此锁串行，否则并发解析会互相覆盖脚注或抛 NPE。
+private val mdAstParseMutex = Mutex()
+
+/**
+ * 在后台线程解析正文并保留上一次的结果：
+ * 解析完成前继续显示旧文档，避免内容切换时闪空白。
+ */
+@Composable
+private fun rememberParsedDocument(source: String, parse: (String) -> Document): Document? =
+    produceState<Document?>(null, source) {
+        value = mdAstParseMutex.withLock {
+            withContext(Dispatchers.Default) { parse(source) }
+        }
+    }.value
+
 @Composable
 fun RenderMarkdown(
     html: String,
@@ -264,18 +285,20 @@ fun RenderMarkdown(
     footer: (@Composable () -> Unit)? = null,
     useTiqianRenderer: Boolean = false,
 ) {
-    val document = remember(html) { htmlToMdAst(html) }
-    RenderMarkdownDocument(
-        document = document,
-        sourceMarkdown = null,
-        modifier = modifier,
-        scrollState = scrollState,
-        selectable = selectable,
-        enableScroll = enableScroll,
-        header = header,
-        footer = footer,
-        useTiqianRenderer = useTiqianRenderer,
-    )
+    val document = rememberParsedDocument(html, ::htmlToMdAst)
+    if (document != null) {
+        RenderMarkdownDocument(
+            document = document,
+            sourceMarkdown = null,
+            modifier = modifier,
+            scrollState = scrollState,
+            selectable = selectable,
+            enableScroll = enableScroll,
+            header = header,
+            footer = footer,
+            useTiqianRenderer = useTiqianRenderer,
+        )
+    }
 }
 
 @Composable
@@ -289,18 +312,20 @@ fun RenderMarkdownText(
     footer: (@Composable () -> Unit)? = null,
     useTiqianRenderer: Boolean = false,
 ) {
-    val document = remember(markdown) { markdownToMdAst(markdown) }
-    RenderMarkdownDocument(
-        document = document,
-        sourceMarkdown = markdown,
-        modifier = modifier,
-        scrollState = scrollState,
-        selectable = selectable,
-        enableScroll = enableScroll,
-        header = header,
-        footer = footer,
-        useTiqianRenderer = useTiqianRenderer,
-    )
+    val document = rememberParsedDocument(markdown, ::markdownToMdAst)
+    if (document != null) {
+        RenderMarkdownDocument(
+            document = document,
+            sourceMarkdown = markdown,
+            modifier = modifier,
+            scrollState = scrollState,
+            selectable = selectable,
+            enableScroll = enableScroll,
+            header = header,
+            footer = footer,
+            useTiqianRenderer = useTiqianRenderer,
+        )
+    }
 }
 
 @Composable
