@@ -88,6 +88,51 @@ class NavDestinationTest {
     }
 
     @Test
+    fun resolvesOiaShareUrlPaths() {
+        // 从知乎分享/运营域名 oia.zhihu.com 打开的直链：路径结构与主站一致，
+        // 且个人主页分享链接自带 utm_* 与 fallback_url 跟踪参数。
+        val sharedPeopleUrl = "https://oia.zhihu.com/people/c9bbc36330f1065183014cbfdf956cbe" +
+            "?utm_source=wechat_session&utm_medium=profile&utm_content=description" +
+            "&mcid=df8e35d1-67d2-4587-bb12-b6b1cef22976" +
+            "&fallback_url=https%3A%2F%2Foia.zhihu.com%2Fpeople%2Fc9bbc36330f1065183014cbfdf956cbe"
+        val person = assertIs<Person>(resolveContent(sharedPeopleUrl))
+        assertEquals("c9bbc36330f1065183014cbfdf956cbe", person.id)
+
+        val article = assertIs<Article>(resolveContent("https://oia.zhihu.com/question/628888888/answer/123456789"))
+        assertEquals(ArticleType.Answer, article.type)
+        assertEquals(123456789L, article.id)
+    }
+
+    @Test
+    fun resolvesPeopleProfileTabUrls() {
+        // 个人主页子 tab 分享链接：进入个人主页并直接落在对应 tab。
+        val expectedBase = Person(id = Person.EMPTY_ID, urlToken = "zly2006")
+        listOf(
+            "https://www.zhihu.com/people/zly2006/answers" to expectedBase.copy(jumpTo = "回答"),
+            "https://www.zhihu.com/people/zly2006/posts" to expectedBase.copy(jumpTo = "文章"),
+            "https://www.zhihu.com/people/zly2006/articles" to expectedBase.copy(jumpTo = "文章"),
+            "https://www.zhihu.com/people/zly2006/activities" to expectedBase.copy(jumpTo = "动态"),
+            "https://www.zhihu.com/people/zly2006/asks" to expectedBase.copy(jumpTo = "提问"),
+            "https://www.zhihu.com/people/zly2006/pins" to expectedBase.copy(jumpTo = "想法"),
+            "https://www.zhihu.com/people/zly2006/columns" to expectedBase.copy(jumpTo = "专栏"),
+            "https://www.zhihu.com/people/zly2006/followers" to expectedBase.copy(jumpTo = "粉丝"),
+            "https://www.zhihu.com/people/zly2006/followees" to expectedBase.copy(jumpTo = "关注"),
+            // 未知子路径降级为个人主页本身，而不是解析失败。
+            "https://www.zhihu.com/people/zly2006/unknown-tab" to expectedBase,
+            "https://www.zhihu.com/people/zly2006" to expectedBase,
+        ).forEach { (url, expected) ->
+            assertEquals(expected, resolveContent(url), url)
+        }
+    }
+
+    @Test
+    fun resolvesQuestionAnswerListAndVideoUrls() {
+        assertEquals(Question(628888888), resolveContent("https://www.zhihu.com/question/628888888/answers"))
+        assertEquals(Video(1234567890), resolveContent("https://www.zhihu.com/zvideo/1234567890"))
+        assertEquals(Video(1234567890), resolveContent("https://v.zhihu.com/video/1234567890"))
+    }
+
+    @Test
     fun resolvesAnswerCommentDeepLinkWithAnchor() {
         val destination = resolveContent(
             "zhihu://comment/list/answer/42?anchor_comment_id=123456&is_child=false",
