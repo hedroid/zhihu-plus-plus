@@ -117,6 +117,7 @@ import com.github.zly2006.zhihu.viewmodel.ContentLoadEnvironment
 import com.github.zly2006.zhihu.viewmodel.addReadHistory
 import com.github.zly2006.zhihu.viewmodel.feed.QuestionFeedViewModel
 import com.github.zly2006.zhihu.viewmodel.rememberPaginationEnvironment
+import com.github.zly2006.zhihu.viewmodel.sharedArticleAnswerSwitchState
 import kotlinx.coroutines.launch
 
 const val QUESTION_SCREEN_LIST_TAG = "question_screen_list"
@@ -174,7 +175,7 @@ fun QuestionScreen(
         items = viewModel.displayItems,
     )
     val paginationEnvironment = rememberPaginationEnvironment(allowGuestAccess = false)
-    val answerSwitchState = paginationEnvironment.articleAnswerSwitchState()
+    val answerSwitchState = sharedArticleAnswerSwitchState
     val listState = rememberLazyListState()
     var questionContent by remember(question.questionId) { mutableStateOf("") }
     var answerCount by remember(question.questionId) { mutableIntStateOf(0) }
@@ -526,7 +527,7 @@ fun QuestionScreen(
                     readingQueueSourceId = answerReadingQueueSourceId,
                     modifier = Modifier.testTag("question_feed_item_${item.stableKey}"),
                 ) { _, destination ->
-                    answerSwitchState?.pendingNavigator = viewModel.createAnswerNavigatorFor(item, paginationEnvironment)
+                    answerSwitchState.pendingNavigator = viewModel.createAnswerNavigatorFor(item, paginationEnvironment)
                     destination?.let(navigator.onNavigate)
                 }
             }

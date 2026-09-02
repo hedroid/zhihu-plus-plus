@@ -59,8 +59,7 @@ const val HOT_LIST_TITLE_TAG = "hot_list_title"
 /**
  * 热榜页面。
  *
- * 页面主体是知乎热榜分页列表，支持下拉刷新、加载更多和刷新 FAB。它既可以作为主 tab 页使用，
- * 也可以在测试中通过 [onTestRefreshClick]、[onTestLoadMore] 控制分页行为，因此新增交互时要保留测试注入路径。
+ * 页面主体是知乎热榜分页列表，支持下拉刷新、加载更多和刷新 FAB。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,8 +67,6 @@ fun HotListScreen(
     innerPadding: PaddingValues = PaddingValues(0.dp),
     scrollToTopTrigger: Int = 0,
     isActive: Boolean = true,
-    onTestRefreshClick: (() -> Unit)? = null,
-    onTestLoadMore: (() -> Unit)? = null,
 ) {
     val viewModel: HotListViewModel = viewModel { HotListViewModel() }
     val readingQueueSourceId = "hot-list:total"
@@ -98,7 +95,7 @@ fun HotListScreen(
         )
         if (isActive) {
             when (action) {
-                TopLevelReselectAction.Refresh -> onTestRefreshClick?.invoke() ?: viewModel.refresh(environment)
+                TopLevelReselectAction.Refresh -> viewModel.refresh(environment)
                 TopLevelReselectAction.ScrollToTop -> listState.animateScrollToItem(0)
                 null -> {}
             }
@@ -133,7 +130,7 @@ fun HotListScreen(
             PaginatedList(
                 items = viewModel.displayItems,
                 listState = listState,
-                onLoadMore = { onTestLoadMore?.invoke() ?: viewModel.loadMore(environment) },
+                onLoadMore = { viewModel.loadMore(environment) },
                 modifier = Modifier
                     .fillMaxSize()
                     .testTag(HOT_LIST_LIST_TAG),
@@ -156,7 +153,7 @@ fun HotListScreen(
                 DraggableRefreshButton(
                     modifier = Modifier.testTag(HOT_LIST_REFRESH_BUTTON_TAG),
                     onClick = {
-                        onTestRefreshClick?.invoke() ?: viewModel.refresh(environment)
+                        viewModel.refresh(environment)
                     },
                 ) {
                     if (viewModel.isLoading) {
