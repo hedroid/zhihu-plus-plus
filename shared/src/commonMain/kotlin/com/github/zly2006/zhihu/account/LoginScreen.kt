@@ -17,6 +17,7 @@
 
 package com.github.zly2006.zhihu.account
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -92,9 +93,12 @@ fun LoginScreen(
             onConfirm = { noticeStep++ },
         )
     } else {
+        // 登录页根部必须画不透明底色：主 NavHost 转场旧页面静止不退场（ExitTransition.None），
+        // 透明根布局会让下层页面持续透出形成重影；其他页面由 Scaffold 底色遮盖，这里对齐。
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surface)
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -175,6 +179,7 @@ private fun LoginNoticeScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surface)
             .testTag(stepTag),
     ) {
         Column(
