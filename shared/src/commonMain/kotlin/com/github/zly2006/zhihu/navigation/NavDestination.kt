@@ -379,7 +379,10 @@ private fun resolveContent(url: Url, depth: Int): NavDestination? {
     resolveHybridTarget(url, depth)?.let { return it }
     val segments = url.segments
     if (url.protocol.name == "http" || url.protocol.name == "https") {
-        if (url.host == "zhihu.com" || url.host == "www.zhihu.com") {
+        // oia.zhihu.com 是知乎的分享/运营中转域名，路径结构与主站一致（如 /people/{id} 分享链接
+        // 带 utm_* 与 fallback_url 参数）。真实请求验证该域名按相同路径返回 open-in-app 中转页；
+        // 不纳入白名单时此类链接会解析失败并弹出 Unsupported URL。
+        if (url.host == "zhihu.com" || url.host == "www.zhihu.com" || url.host == "oia.zhihu.com") {
             if (segments.size == 1 && segments[0] == "compose_answer_tab") {
                 return Notification.Invitations
             } else if (segments.size == 2 && segments[0] == "inbox") {
@@ -409,6 +412,13 @@ private fun resolveContent(url: Url, depth: Int): NavDestination? {
             ) {
                 val answerId = segments[1].toLong()
                 return Article(type = ArticleType.Answer, id = answerId)
+            } else if (segments.size == 3 &&
+                segments[0] == "question" &&
+                segments[2] == "answers"
+            ) {
+                // 问题的回答列表页分享链接。
+                val questionId = segments[1].toLong()
+                return Question(questionId)
             } else if (segments.size == 2 &&
                 segments[0] == "question"
             ) {
@@ -420,16 +430,28 @@ private fun resolveContent(url: Url, depth: Int): NavDestination? {
             ) {
                 val articleId = segments[2].toLong()
                 return Article(type = ArticleType.Article, id = articleId)
-            } else if (segments.size == 2 && segments[0] == "people") {
-                val urlToken = segments[1]
-                if (urlToken.length == 32 && urlToken.all { it in '0'..'9' || it in 'a'..'f' }) {
+            } else if (segments.firstOrNull() == "people") {
+                val urlToken = segments.getOrNull(1) ?: return null
+                val person = if (urlToken.length == 32 && urlToken.all { it in '0'..'9' || it in 'a'..'f' }) {
                     // 32 位十六进制字符，通常是用户 ID。
-                    return Person(id = urlToken, urlToken = urlToken)
+                    Person(id = urlToken, urlToken = urlToken)
                 } else {
                     // 可读 token。
-                    return Person(id = Person.EMPTY_ID, urlToken = urlToken)
+                    Person(id = Person.EMPTY_ID, urlToken = urlToken)
                 }
-            } else if (segments.size == 2 && segments[0] == "video") {
+                // 个人主页子 tab 的分享链接（/people/{token}/answers 等），进入时直接落在对应 tab。
+                return when (segments.getOrNull(2)) {
+                    "answers" -> person.copy(jumpTo = "回答")
+                    "posts", "articles" -> person.copy(jumpTo = "文章")
+                    "activities" -> person.copy(jumpTo = "动态")
+                    "asks" -> person.copy(jumpTo = "提问")
+                    "pins" -> person.copy(jumpTo = "想法")
+                    "columns" -> person.copy(jumpTo = "专栏")
+                    "followers" -> person.copy(jumpTo = "粉丝")
+                    "followees" -> person.copy(jumpTo = "关注")
+                    else -> person
+                }
+            } else if (segments.size == 2 && (segments[0] == "video" || segments[0] == "zvideo")) {
                 val videoId = segments[1].toLongOrNull() ?: return null
                 return Video(id = videoId) // TODO: 视频详情页待完善。
             } else if (segments.size == 2 && segments[0] == "pin") {
@@ -471,6 +493,12 @@ private fun resolveContent(url: Url, depth: Int): NavDestination? {
         } else if (url.host == "link.zhihu.com") {
             val target = url.parameters["target"] ?: return null
             return runCatching { Url(target) }.getOrNull()?.let { resolveContent(it, depth + 1) }
+        } else if (url.host == "v.zhihu.com") {
+            // 视频分享域名，路径与主站 /video/{id} 一致。
+            if (segments.size == 2 && segments[0] == "video") {
+                val videoId = segments[1].toLongOrNull() ?: return null
+                return Video(id = videoId)
+            }
         }
     }
     if (url.protocol.name == "zhihu") {
