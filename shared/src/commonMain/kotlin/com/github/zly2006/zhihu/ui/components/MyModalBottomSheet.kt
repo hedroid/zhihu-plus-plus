@@ -101,7 +101,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.max
 import kotlin.math.min
 
-const val DISABLE_BOTTOM_SHEET_ROUNDED_CORNERS_PREFERENCE_KEY = "disableBottomSheetRoundedCorners"
+const val USE_BOTTOM_SHEET_ROUNDED_CORNERS_PREFERENCE_KEY = "useBottomSheetRoundedCorners"
 
 internal fun resolveBottomSheetCornerRadius(
     windowWidth: Dp,
@@ -153,10 +153,10 @@ fun MyModalBottomSheet(
             }
         }
     }
-    val bottomSheetShape = if (settings.getBoolean(DISABLE_BOTTOM_SHEET_ROUNDED_CORNERS_PREFERENCE_KEY, false)) {
-        RectangleShape
-    } else {
+    val bottomSheetShape = if (settings.getBoolean(USE_BOTTOM_SHEET_ROUNDED_CORNERS_PREFERENCE_KEY, false)) {
         shape ?: RoundedCornerShape(topStart = adaptiveCornerRadius, topEnd = adaptiveCornerRadius)
+    } else {
+        RectangleShape
     }
     val scope = rememberCoroutineScope()
     val animateToDismiss: () -> Unit = {
