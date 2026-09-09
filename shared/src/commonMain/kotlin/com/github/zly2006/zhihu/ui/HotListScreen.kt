@@ -49,6 +49,8 @@ import com.github.zly2006.zhihu.ui.components.FeedCard
 import com.github.zly2006.zhihu.ui.components.FeedPullToRefresh
 import com.github.zly2006.zhihu.ui.components.PaginatedList
 import com.github.zly2006.zhihu.ui.components.ProgressIndicatorFooter
+import com.github.zly2006.zhihu.ui.components.pageTurnViewportWithGuide
+import com.github.zly2006.zhihu.ui.components.rememberPageTurnTarget
 import com.github.zly2006.zhihu.viewmodel.feed.HotListViewModel
 import com.github.zly2006.zhihu.viewmodel.rememberPaginationEnvironment
 
@@ -80,6 +82,7 @@ fun HotListScreen(
     val userMessages = rememberUserMessageSink()
     val settings = rememberSettingsStore()
     val listState = rememberLazyListState()
+    val pageTurnTarget = rememberPageTurnTarget(listState = listState, enabled = isActive)
     var cachedScrollToTopTrigger by remember { mutableIntStateOf(scrollToTopTrigger) }
 
     LaunchedEffect(Unit) {
@@ -133,6 +136,7 @@ fun HotListScreen(
                 onLoadMore = { viewModel.loadMore(environment) },
                 modifier = Modifier
                     .fillMaxSize()
+                    .pageTurnViewportWithGuide(pageTurnTarget)
                     .testTag(HOT_LIST_LIST_TAG),
                 contentPadding = PaddingValues(
                     top = scaffoldPadding.calculateTopPadding(),
