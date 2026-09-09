@@ -473,6 +473,54 @@ class PeopleScreenInstrumentedTest {
         )
     }
 
+    /**
+     * Regression: https://github.com/zly2006/zhihu-plus-plus/issues/718
+     *
+     * 本仓库的个人页操作按钮位于右下角 FAB 菜单而非头部，按本仓库布局适配上游回归：
+     * 密集认证徽章不得破坏头部、标签栏与操作菜单的可达性。
+     */
+    @Test
+    fun denseProfileBadgesKeepProfileActionsReachableOffline() {
+        val viewModel = seededViewModel(itemCount = 12)
+        setPeopleScreen()
+        composeRule.activity.runOnUiThread {
+            viewModel.officialBadgeDetails = listOf(
+                OfficialBadge("社区成就", "社区成就说明"),
+                OfficialBadge("身份认证", "身份认证说明"),
+                OfficialBadge("优秀答主", "优秀答主说明"),
+                OfficialBadge("新知答主", "新知答主说明"),
+            )
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(PEOPLE_SCREEN_HEADER_TAG).assertIsDisplayed()
+        composeRule.onNodeWithTag(PEOPLE_SCREEN_TAB_ROW_TAG).assertIsDisplayed()
+        composeRule.onNodeWithTag(PEOPLE_SCREEN_ACTION_FAB_TAG).assertIsDisplayed()
+
+        // 展开态：密集徽章下仍能打开操作菜单，四项操作全部可见
+        composeRule.onNodeWithTag(PEOPLE_SCREEN_ACTION_FAB_TAG).performClick()
+        composeRule.onNodeWithTag(PEOPLE_SCREEN_ACTION_MENU_TAG).assertIsDisplayed()
+        listOf(
+            PEOPLE_SCREEN_FOLLOW_BUTTON_TAG,
+            PEOPLE_SCREEN_BLOCK_BUTTON_TAG,
+            PEOPLE_SCREEN_RECOMMENDATION_BLOCK_BUTTON_TAG,
+            PEOPLE_SCREEN_QUESTION_AUTHOR_BLOCK_BUTTON_TAG,
+        ).forEach { tag ->
+            composeRule.onNodeWithTag(tag, useUnmergedTree = true).assertIsDisplayed()
+        }
+        composeRule.onNodeWithTag(PEOPLE_SCREEN_ACTION_FAB_TAG).performClick()
+        composeRule.waitForIdle()
+
+        // 收起态：滚动折叠头部后，标签栏与操作入口仍可用
+        composeRule
+            .onNodeWithTag(PEOPLE_SCREEN_ANSWERS_LIST_TAG)
+            .performScrollToNode(hasTestTag("people_screen_answer_item_12"))
+        composeRule.onNodeWithTag(PEOPLE_SCREEN_TAB_ROW_TAG).assertIsDisplayed()
+        composeRule.onNodeWithTag(PEOPLE_SCREEN_ACTION_FAB_TAG).assertIsDisplayed()
+        composeRule.onNodeWithTag(PEOPLE_SCREEN_ACTION_FAB_TAG).performClick()
+        composeRule.onNodeWithTag(PEOPLE_SCREEN_ACTION_MENU_TAG).assertIsDisplayed()
+    }
+
     @Test
     fun followingSubscriptionsTabMatchesOfficialEntryPointsOffline() {
         /*
