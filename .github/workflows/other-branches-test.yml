@@ -40,6 +40,12 @@ jobs:
           key: gradle-cache-${{ hashFiles('**/*.gradle.kts', '**/gradle-wrapper.properties') }}
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        # workaround: Google 已从 SDK 仓库下架遗留 tools 包（2026-09 中旬起），
+        # action 默认 packages（tools platform-tools）会让 sdkmanager 报
+        # "Failed to find package 'tools'" 直接失败。覆盖为只装仍存在的
+        # platform-tools，见 https://github.com/android-actions/setup-android/issues/537
+        with:
+          packages: platform-tools
       - name: Setup rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
