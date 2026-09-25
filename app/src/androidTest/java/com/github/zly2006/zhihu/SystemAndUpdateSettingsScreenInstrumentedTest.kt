@@ -37,7 +37,7 @@ import com.github.zly2006.zhihu.test.resetAppPreferences
 import com.github.zly2006.zhihu.test.setScreenContent
 import com.github.zly2006.zhihu.ui.PREFERENCE_NAME
 import com.github.zly2006.zhihu.ui.subscreens.SystemAndUpdateSettingsScreen
-import com.github.zly2006.zhihu.updater.SchematicVersion
+import com.github.zly2006.zhihu.updater.SemanticVersion
 import com.github.zly2006.zhihu.updater.UpdateManager
 import com.github.zly2006.zhihu.updater.UpdateManager.UpdateState
 import com.github.zly2006.zhihu.util.ContinuousUsageReminderManager
@@ -82,7 +82,7 @@ class SystemAndUpdateSettingsScreenInstrumentedTest {
         // screen renders a fixed "update available" path without touching GitHub or any other
         // network source, then verifies that the skip and reset buttons both produce the exact
         // local state transitions the settings screen is responsible for handling.
-        val seededVersion = SchematicVersion.fromString("9.9.9")
+        val seededVersion = SemanticVersion.fromString("9.9.9")
         UpdateManager.updateState.value = UpdateState.UpdateAvailable(
             version = seededVersion,
             releaseNotes = "修复若干设置项细节\nhttps://github.com/hedroid/zhihu-plus-plus/pull/321",
