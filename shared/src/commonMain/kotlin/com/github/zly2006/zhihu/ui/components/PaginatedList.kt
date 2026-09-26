@@ -123,6 +123,7 @@ fun <T> PaginatedList(
     listState: LazyListState = rememberLazyListState(),
     reverseLayout: Boolean = false,
     isEnd: () -> Boolean = { false },
+    isLoading: () -> Boolean = { false },
     footer: @Composable ((LazyListState) -> Unit)? = null,
     key: ((T) -> Any)? = null,
     topContent: LazyListScope.() -> Unit = {},
@@ -146,8 +147,14 @@ fun <T> PaginatedList(
         }
     }
 
-    LaunchedEffect(shouldLoadMore, items.size, isEnd()) {
-        if (shouldLoadMore && items.isNotEmpty() && !isEnd()) {
+    val loadMoreEffectKey = PaginatedLoadMoreEffectKey(
+        shouldLoadMore = shouldLoadMore,
+        itemCount = items.size,
+        isEnd = isEnd(),
+        isLoading = isLoading(),
+    )
+    LaunchedEffect(loadMoreEffectKey) {
+        if (shouldLoadMore && items.isNotEmpty() && !isEnd() && !isLoading()) {
             onLoadMore()
             // 留一帧给调用方发布新数据或标记列表结束。
             delay(50)
@@ -199,3 +206,10 @@ fun <T> PaginatedList(
         }
     }
 }
+
+internal data class PaginatedLoadMoreEffectKey(
+    val shouldLoadMore: Boolean,
+    val itemCount: Int,
+    val isEnd: Boolean,
+    val isLoading: Boolean,
+)

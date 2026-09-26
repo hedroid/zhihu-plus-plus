@@ -19,6 +19,7 @@ package com.github.zly2006.zhihu.ui.components
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 
 class PaginatedListKeyTest {
     @Test
@@ -56,5 +57,23 @@ class PaginatedListKeyTest {
             ),
             keys,
         )
+    }
+
+    @Test
+    fun finishingRefreshRestartsPendingLoadMoreEffect() {
+        val whileRefreshing = PaginatedLoadMoreEffectKey(
+            shouldLoadMore = true,
+            itemCount = 20,
+            isEnd = false,
+            isLoading = true,
+        )
+        val afterRefresh = PaginatedLoadMoreEffectKey(
+            shouldLoadMore = true,
+            itemCount = 20,
+            isEnd = false,
+            isLoading = false,
+        )
+
+        assertNotEquals(whileRefreshing, afterRefresh)
     }
 }
