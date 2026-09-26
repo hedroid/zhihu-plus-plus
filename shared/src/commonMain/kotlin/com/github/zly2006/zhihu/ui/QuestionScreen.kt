@@ -342,6 +342,7 @@ fun QuestionScreen(
                 items = viewModel.displayItems,
                 onLoadMore = { viewModel.loadMore(paginationEnvironment) },
                 isEnd = { viewModel.isEnd },
+                isLoading = { viewModel.isLoading },
                 key = { it.stableKey },
                 listState = listState,
                 modifier = Modifier

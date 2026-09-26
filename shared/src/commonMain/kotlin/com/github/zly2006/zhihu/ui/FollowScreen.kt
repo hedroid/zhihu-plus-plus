@@ -409,6 +409,8 @@ fun FollowRecommendScreen(
                     }
                 },
                 onLoadMore = { viewModel.loadMore(environment) },
+                isEnd = { viewModel.isEnd },
+                isLoading = { viewModel.isLoading },
                 footer = ProgressIndicatorFooter,
             ) { item ->
                 FeedCard(
@@ -564,6 +566,8 @@ fun FollowDynamicScreen(
                     }
                 },
                 footer = ProgressIndicatorFooter,
+                isEnd = { viewModel.isEnd },
+                isLoading = { viewModel.isLoading },
             ) { item ->
                 FeedCard(
                     item = item,

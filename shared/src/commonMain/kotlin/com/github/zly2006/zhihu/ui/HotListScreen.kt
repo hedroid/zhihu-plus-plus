@@ -134,6 +134,7 @@ fun HotListScreen(
                 items = viewModel.displayItems,
                 listState = listState,
                 onLoadMore = { viewModel.loadMore(environment) },
+                isLoading = { viewModel.isLoading },
                 modifier = Modifier
                     .fillMaxSize()
                     .pageTurnViewportWithGuide(pageTurnTarget)

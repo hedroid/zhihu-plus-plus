@@ -884,6 +884,7 @@ fun PeopleScreen(
                                     items = viewModel.answersFeedModel.allData,
                                     onLoadMore = { viewModel.answersFeedModel.loadMore(paginationEnvironment) },
                                     isEnd = { viewModel.answersFeedModel.isEnd },
+                                    isLoading = { viewModel.answersFeedModel.isLoading },
                                     footer = ProgressIndicatorFooter,
                                     modifier = Modifier
                                         .fillMaxSize()
@@ -921,6 +922,7 @@ fun PeopleScreen(
                                     items = viewModel.articlesFeedModel.allData,
                                     onLoadMore = { viewModel.articlesFeedModel.loadMore(paginationEnvironment) },
                                     isEnd = { viewModel.articlesFeedModel.isEnd },
+                                    isLoading = { viewModel.articlesFeedModel.isLoading },
                                     footer = ProgressIndicatorFooter,
                                     modifier = Modifier
                                         .fillMaxSize()
@@ -947,6 +949,7 @@ fun PeopleScreen(
                                 items = viewModel.activitiesFeedModel.displayItems,
                                 onLoadMore = { viewModel.activitiesFeedModel.loadMore(paginationEnvironment) },
                                 isEnd = { viewModel.activitiesFeedModel.isEnd },
+                                isLoading = { viewModel.activitiesFeedModel.isLoading },
                                 footer = ProgressIndicatorFooter,
                                 modifier = Modifier
                                     .fillMaxSize()
@@ -969,6 +972,7 @@ fun PeopleScreen(
                                 items = viewModel.collectionsFeedModel.allData,
                                 onLoadMore = { viewModel.collectionsFeedModel.loadMore(paginationEnvironment) },
                                 isEnd = { viewModel.collectionsFeedModel.isEnd },
+                                isLoading = { viewModel.collectionsFeedModel.isLoading },
                                 footer = ProgressIndicatorFooter,
                                 modifier = Modifier
                                     .fillMaxSize()
@@ -990,6 +994,7 @@ fun PeopleScreen(
                                 items = viewModel.questionsFeedModel.allData,
                                 onLoadMore = { viewModel.questionsFeedModel.loadMore(paginationEnvironment) },
                                 isEnd = { viewModel.questionsFeedModel.isEnd },
+                                isLoading = { viewModel.questionsFeedModel.isLoading },
                                 footer = ProgressIndicatorFooter,
                                 modifier = Modifier
                                     .fillMaxSize()
@@ -1011,6 +1016,7 @@ fun PeopleScreen(
                                 items = viewModel.pinsFeedModel.allData,
                                 onLoadMore = { viewModel.pinsFeedModel.loadMore(paginationEnvironment) },
                                 isEnd = { viewModel.pinsFeedModel.isEnd },
+                                isLoading = { viewModel.pinsFeedModel.isLoading },
                                 footer = ProgressIndicatorFooter,
                                 modifier = Modifier
                                     .fillMaxSize()
@@ -1033,6 +1039,7 @@ fun PeopleScreen(
                                 items = viewModel.columnsFeedModel.allData,
                                 onLoadMore = { viewModel.columnsFeedModel.loadMore(paginationEnvironment) },
                                 isEnd = { viewModel.columnsFeedModel.isEnd },
+                                isLoading = { viewModel.columnsFeedModel.isLoading },
                                 footer = ProgressIndicatorFooter,
                                 modifier = Modifier
                                     .fillMaxSize()
@@ -1054,6 +1061,7 @@ fun PeopleScreen(
                                 items = viewModel.followersFeedModel.allData,
                                 onLoadMore = { viewModel.followersFeedModel.loadMore(paginationEnvironment) },
                                 isEnd = { viewModel.followersFeedModel.isEnd },
+                                isLoading = { viewModel.followersFeedModel.isLoading },
                                 footer = ProgressIndicatorFooter,
                                 modifier = Modifier
                                     .fillMaxSize()
@@ -1076,6 +1084,7 @@ fun PeopleScreen(
                                 items = viewModel.followingFeedModel.allData,
                                 onLoadMore = { viewModel.followingFeedModel.loadMore(paginationEnvironment) },
                                 isEnd = { viewModel.followingFeedModel.isEnd },
+                                isLoading = { viewModel.followingFeedModel.isLoading },
                                 footer = ProgressIndicatorFooter,
                                 modifier = Modifier
                                     .fillMaxSize()
@@ -1408,6 +1417,7 @@ private fun FollowingSubscriptionsPage(
                 items = viewModel.followingColumnsFeedModel.allData,
                 onLoadMore = { onLoadMore(0) },
                 isEnd = { viewModel.followingColumnsFeedModel.isEnd },
+                isLoading = { viewModel.followingColumnsFeedModel.isLoading },
                 footer = ProgressIndicatorFooter,
                 modifier = Modifier
                     .fillMaxSize()
@@ -1426,6 +1436,7 @@ private fun FollowingSubscriptionsPage(
                 items = viewModel.followingTopicsFeedModel.allData,
                 onLoadMore = { onLoadMore(1) },
                 isEnd = { viewModel.followingTopicsFeedModel.isEnd },
+                isLoading = { viewModel.followingTopicsFeedModel.isLoading },
                 footer = ProgressIndicatorFooter,
                 modifier = Modifier
                     .fillMaxSize()
@@ -1441,6 +1452,7 @@ private fun FollowingSubscriptionsPage(
                 items = viewModel.followingQuestionsFeedModel.allData,
                 onLoadMore = { onLoadMore(2) },
                 isEnd = { viewModel.followingQuestionsFeedModel.isEnd },
+                isLoading = { viewModel.followingQuestionsFeedModel.isLoading },
                 footer = ProgressIndicatorFooter,
                 modifier = Modifier
                     .fillMaxSize()
@@ -1456,6 +1468,7 @@ private fun FollowingSubscriptionsPage(
                 items = viewModel.followingCollectionsFeedModel.allData,
                 onLoadMore = { onLoadMore(3) },
                 isEnd = { viewModel.followingCollectionsFeedModel.isEnd },
+                isLoading = { viewModel.followingCollectionsFeedModel.isLoading },
                 footer = ProgressIndicatorFooter,
                 modifier = Modifier
                     .fillMaxSize()

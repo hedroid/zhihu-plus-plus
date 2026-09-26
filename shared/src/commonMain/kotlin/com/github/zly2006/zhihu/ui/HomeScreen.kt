@@ -623,6 +623,8 @@ fun HomeScreen(
                         bottom = innerPadding.calculateBottomPadding() + readingPlayerOverlayPadding,
                     ),
                     onLoadMore = { viewModel.loadMore(paginationEnvironment) },
+                    isEnd = { viewModel.isEnd },
+                    isLoading = { viewModel.isLoading },
                     footer = ProgressIndicatorFooter,
                     key = { item -> item.stableKey },
                     topContent = {

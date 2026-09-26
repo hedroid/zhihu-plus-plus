@@ -143,6 +143,7 @@ fun CollectionScreen(
                 }
             },
             isEnd = { useTestCollections || viewModel.isEnd },
+            isLoading = { !useTestCollections && viewModel.isLoading },
             listState = listState,
             modifier = Modifier
                 .fillMaxSize()

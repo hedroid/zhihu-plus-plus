@@ -122,9 +122,10 @@ fun <T> PaginatedList(
     contentPadding: PaddingValues = PaddingValues(0.dp),
     listState: LazyListState = rememberLazyListState(),
     reverseLayout: Boolean = false,
-    isEnd: () -> Boolean = { false },
-    isLoading: () -> Boolean = { false },
+    isEnd: () -> Boolean,
+    isLoading: () -> Boolean,
     footer: @Composable ((LazyListState) -> Unit)? = null,
+    idleFooter: @Composable ((LazyListState) -> Unit)? = null,
     key: ((T) -> Any)? = null,
     topContent: LazyListScope.() -> Unit = {},
     bottomContent: LazyListScope.() -> Unit = {},
@@ -147,14 +148,14 @@ fun <T> PaginatedList(
         }
     }
 
-    val loadMoreEffectKey = PaginatedLoadMoreEffectKey(
+    val loadMoreState = PaginatedLoadMoreState(
         shouldLoadMore = shouldLoadMore,
         itemCount = items.size,
         isEnd = isEnd(),
         isLoading = isLoading(),
     )
-    LaunchedEffect(loadMoreEffectKey) {
-        if (shouldLoadMore && items.isNotEmpty() && !isEnd() && !isLoading()) {
+    LaunchedEffect(loadMoreState) {
+        if (loadMoreState.canLoadMore) {
             onLoadMore()
             // 留一帧给调用方发布新数据或标记列表结束。
             delay(50)
@@ -197,8 +198,10 @@ fun <T> PaginatedList(
                         )
                     }
                 }
-            } else {
+            } else if (loadMoreState.showsLoadingFooter) {
                 footer?.invoke(listState)
+            } else if (loadMoreState.showsIdleFooter) {
+                idleFooter?.invoke(listState)
             }
         }
         if (isEnd() && items.isNotEmpty() && showContentEndMarker) {
@@ -207,9 +210,18 @@ fun <T> PaginatedList(
     }
 }
 
-internal data class PaginatedLoadMoreEffectKey(
+internal data class PaginatedLoadMoreState(
     val shouldLoadMore: Boolean,
     val itemCount: Int,
     val isEnd: Boolean,
     val isLoading: Boolean,
-)
+) {
+    val canLoadMore: Boolean
+        get() = shouldLoadMore && itemCount > 0 && !isEnd && !isLoading
+
+    val showsLoadingFooter: Boolean
+        get() = !isEnd && isLoading
+
+    val showsIdleFooter: Boolean
+        get() = !isEnd && !isLoading
+}

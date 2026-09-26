@@ -469,6 +469,7 @@ fun TopicScreen(topic: Topic) {
             items = viewModel.items,
             onLoadMore = { viewModel.loadMore(environment) },
             isEnd = { viewModel.isEnd },
+            isLoading = { viewModel.isLoading },
             key = FeedDisplayItem::stableKey,
             listState = listState,
             modifier = Modifier
@@ -476,14 +477,13 @@ fun TopicScreen(topic: Topic) {
                 .padding(padding)
                 .pageTurnViewportWithGuide(pageTurnTarget),
             contentPadding = PaddingValues(bottom = 24.dp),
-            footer = { listState ->
-                if (viewModel.errorMessage == null) {
-                    ProgressIndicatorFooter(listState)
-                } else {
+            footer = ProgressIndicatorFooter,
+            idleFooter = {
+                viewModel.errorMessage?.let { errorMessage ->
                     TextButton(
                         onClick = { viewModel.retry(environment) },
                         modifier = Modifier.fillMaxWidth().padding(8.dp).testTag(TOPIC_RETRY_BUTTON_TAG),
-                    ) { Text("加载失败：${viewModel.errorMessage}，点击重试") }
+                    ) { Text("加载失败：$errorMessage，点击重试") }
                 }
             },
             topContent = {

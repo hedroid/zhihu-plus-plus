@@ -62,6 +62,7 @@ fun LegacyLocalHistoryScreen(
             listState = listState,
             onLoadMore = { /* 不需要加载更多 */ },
             isEnd = { true }, // 始终为 true，因为没有更多数据需要加载。
+            isLoading = { false },
         ) { item ->
             FeedCard(
                 item,

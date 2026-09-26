@@ -755,7 +755,7 @@ fun SearchScreen(
                                     Text("加载失败：${viewModel.errorMessage}，点击重试")
                                 }
                             }
-                            !viewModel.isEnd -> ProgressIndicatorFooter(resultListState)
+                            viewModel.isLoading -> ProgressIndicatorFooter(resultListState)
                         }
                     }
                 }
@@ -769,6 +769,8 @@ fun SearchScreen(
                         items = viewModel.entities,
                         listState = generalListState,
                         onLoadMore = { viewModel.loadMore(paginationEnvironment) },
+                        isEnd = { viewModel.isEnd },
+                        isLoading = { viewModel.isLoading },
                         modifier = Modifier
                             .pageTurnViewportWithGuide(pageTurnTarget)
                             .testTag("search_general_results"),

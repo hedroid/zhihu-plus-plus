@@ -19,7 +19,9 @@ package com.github.zly2006.zhihu.ui.components
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
+import kotlin.test.assertTrue
 
 class PaginatedListKeyTest {
     @Test
@@ -61,13 +63,13 @@ class PaginatedListKeyTest {
 
     @Test
     fun finishingRefreshRestartsPendingLoadMoreEffect() {
-        val whileRefreshing = PaginatedLoadMoreEffectKey(
+        val whileRefreshing = PaginatedLoadMoreState(
             shouldLoadMore = true,
             itemCount = 20,
             isEnd = false,
             isLoading = true,
         )
-        val afterRefresh = PaginatedLoadMoreEffectKey(
+        val afterRefresh = PaginatedLoadMoreState(
             shouldLoadMore = true,
             itemCount = 20,
             isEnd = false,
@@ -75,5 +77,25 @@ class PaginatedListKeyTest {
         )
 
         assertNotEquals(whileRefreshing, afterRefresh)
+        assertFalse(whileRefreshing.canLoadMore)
+        assertTrue(afterRefresh.canLoadMore)
+        assertTrue(whileRefreshing.showsLoadingFooter)
+        assertFalse(whileRefreshing.showsIdleFooter)
+        assertFalse(afterRefresh.showsLoadingFooter)
+        assertTrue(afterRefresh.showsIdleFooter)
+    }
+
+    @Test
+    fun finishedListShowsNoPaginationFooter() {
+        val finished = PaginatedLoadMoreState(
+            shouldLoadMore = true,
+            itemCount = 20,
+            isEnd = true,
+            isLoading = false,
+        )
+
+        assertFalse(finished.canLoadMore)
+        assertFalse(finished.showsLoadingFooter)
+        assertFalse(finished.showsIdleFooter)
     }
 }
