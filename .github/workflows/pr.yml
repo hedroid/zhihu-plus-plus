@@ -72,6 +72,7 @@ jobs:
         # action 默认 packages（tools platform-tools）会让 sdkmanager 报
         # "Failed to find package 'tools'" 直接失败。覆盖为只装仍存在的
         # platform-tools，见 https://github.com/android-actions/setup-android/issues/537
+        # 上游同样失败的记录：https://github.com/zly2006/zhihu-plus-plus/actions/runs/35182179380/job/105076511639
         with:
           packages: platform-tools
 
@@ -205,6 +206,7 @@ jobs:
         # action 默认 packages（tools platform-tools）会让 sdkmanager 报
         # "Failed to find package 'tools'" 直接失败。覆盖为只装仍存在的
         # platform-tools，见 https://github.com/android-actions/setup-android/issues/537
+        # 上游同样失败的记录：https://github.com/zly2006/zhihu-plus-plus/actions/runs/35182179380/job/105076511639
         with:
           packages: platform-tools
 

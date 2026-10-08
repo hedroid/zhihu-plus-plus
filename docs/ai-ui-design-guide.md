@@ -127,7 +127,7 @@ URL 解析集中在 `resolveContent()`。支持知乎问题、回答、文章、
 
 ## 123Duo3 UI/UX 开关
 
-`duo3_all` 是批量开关。开启时会写入 `duo3_home_account`、`duo3_card_appearance`、`duo3_card_layout`、`duo3_article_bar`、`duo3_article_actions`，并关闭 `buttonSkipAnswer`。底部导航栏统一使用 Material 样式，不再提供单独开关。
+`duo3_all` 是批量开关。开启时会写入 `duo3_home_account`、`duo3_card_appearance`、`duo3_card_layout`、`duo3_article_bar`、`duo3_article_actions`，并关闭 `showRefreshFab` 和 `buttonSkipAnswer`。底部导航栏统一使用 Material 样式，不再提供单独开关。
 
 各子开关影响:
 
